@@ -1,0 +1,282 @@
+/* =========================================================
+   PerculaCMS – Custom Styles
+   Bootstrap 5.3 – Dark + Light Mode
+   ========================================================= */
+
+/* ── CSS Custom Properties ── */
+:root {
+  --percuia-primary: #5B6AF0;        /* Indigo-blau */
+  --percuia-secondary: #43D9AD;      /* Mint-grün  */
+  --percuia-accent: #F5A623;         /* Amber      */
+  --percuia-text: #2C2F3B;
+  --percuia-surface: #F8F9FE;
+  --percuia-nav-bg: rgba(255,255,255,0.92);
+  --percuia-nav-border: rgba(91,106,240,0.12);
+  --percuia-footer-bg: #1C1F35;
+  --percuia-footer-text: #adb5bd;
+  --percuia-card-shadow: 0 4px 24px rgba(91,106,240,0.10);
+  --percuia-radius: 1rem;
+  --percuia-hero-gradient: linear-gradient(135deg, #f0f4ff 0%, #e8fdf6 100%);
+}
+
+[data-bs-theme="dark"] {
+  --percuia-text: #e2e8f0;
+  --percuia-surface: #131624;
+  --percuia-nav-bg: rgba(19,22,36,0.95);
+  --percuia-nav-border: rgba(91,106,240,0.20);
+  --percuia-footer-bg: #0c0e1a;
+  --percuia-footer-text: #6c757d;
+  --percuia-card-shadow: 0 4px 24px rgba(0,0,0,0.35);
+  --percuia-hero-gradient: linear-gradient(135deg, #131624 0%, #0f2027 100%);
+}
+
+/* ── Global ── */
+body {
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+  color: var(--percuia-text);
+  background-color: var(--percuia-surface);
+  font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+}
+
+main#main-content {
+  flex: 1;
+}
+
+/* ── Navbar ── */
+.percula-navbar {
+  background: var(--percuia-nav-bg);
+  border-bottom: 1px solid var(--percuia-nav-border);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+}
+
+.percula-navbar .navbar-brand {
+  color: var(--percuia-primary);
+}
+
+.percula-navbar .nav-link {
+  font-size: 0.9rem;
+  font-weight: 500;
+  padding: 0.45rem 0.75rem;
+  border-radius: 0.5rem;
+  transition: background 0.2s, color 0.2s;
+}
+
+.percula-navbar .nav-link:hover,
+.percula-navbar .nav-link.active {
+  background: rgba(91,106,240,0.10);
+  color: var(--percuia-primary) !important;
+}
+
+.percula-logo-icon {
+  color: var(--percuia-primary);
+  font-size: 1.4rem;
+  line-height: 1;
+}
+
+/* ── Hero Section ── */
+.percula-hero {
+  background: var(--percuia-hero-gradient);
+  padding: 6rem 0 5rem;
+  position: relative;
+  overflow: hidden;
+}
+
+.percula-hero::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(ellipse 60% 60% at 80% 20%, rgba(91,106,240,0.12) 0%, transparent 70%),
+    radial-gradient(ellipse 40% 40% at 20% 80%, rgba(67,217,173,0.10) 0%, transparent 70%);
+  pointer-events: none;
+}
+
+.percula-hero .badge-pill {
+  background: rgba(91,106,240,0.12);
+  color: var(--percuia-primary);
+  padding: 0.45rem 1rem;
+  border-radius: 2rem;
+  font-size: 0.8rem;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.percula-hero h1 {
+  font-size: clamp(2rem, 5vw, 3.5rem);
+  font-weight: 800;
+  line-height: 1.15;
+  letter-spacing: -0.02em;
+}
+
+.percula-hero .lead {
+  font-size: 1.15rem;
+  max-width: 540px;
+}
+
+.gradient-text {
+  background: linear-gradient(135deg, var(--percuia-primary), var(--percuia-secondary));
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+/* ── Feature Cards ── */
+.percula-card {
+  border: 1px solid rgba(91,106,240,0.12);
+  border-radius: var(--percuia-radius);
+  box-shadow: var(--percuia-card-shadow);
+  transition: transform 0.25s ease, box-shadow 0.25s ease;
+  background: var(--bs-body-bg);
+}
+
+.percula-card:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 10px 40px rgba(91,106,240,0.18);
+}
+
+.percula-icon-box {
+  width: 56px;
+  height: 56px;
+  border-radius: 0.75rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.5rem;
+  flex-shrink: 0;
+}
+
+.icon-primary { background: rgba(91,106,240,0.12); color: var(--percuia-primary); }
+.icon-success { background: rgba(67,217,173,0.12); color: #2ba88a; }
+.icon-warning { background: rgba(245,166,35,0.12); color: #c9860a; }
+.icon-info    { background: rgba(13,202,240,0.12);  color: #0a9fbf; }
+.icon-purple  { background: rgba(160,102,235,0.12); color: #7c3aed; }
+.icon-rose    { background: rgba(244,63,94,0.12);   color: #be123c; }
+
+/* ── Stats Band ── */
+.percula-stats {
+  background: linear-gradient(135deg, var(--percuia-primary), #7b5ea7);
+  color: #fff;
+  padding: 3rem 0;
+}
+
+.stat-value {
+  font-size: 2.5rem;
+  font-weight: 800;
+  line-height: 1;
+}
+
+.stat-label {
+  font-size: 0.85rem;
+  opacity: 0.8;
+  margin-top: 0.25rem;
+}
+
+/* ── Testimonial / Quote ── */
+.testimonial-card {
+  border-left: 4px solid var(--percuia-primary);
+  background: var(--bs-body-bg);
+  border-radius: 0 var(--percuia-radius) var(--percuia-radius) 0;
+  padding: 1.5rem;
+  box-shadow: var(--percuia-card-shadow);
+}
+
+/* ── CTA Section ── */
+.percula-cta {
+  background: var(--percuia-hero-gradient);
+  border-radius: var(--percuia-radius);
+}
+
+/* ── Footer ── */
+.percula-footer {
+  background: var(--percuia-footer-bg);
+  color: var(--percuia-footer-text);
+  padding: 3.5rem 0 2rem;
+}
+
+.percula-footer h6 {
+  color: #fff;
+}
+
+.footer-link {
+  color: var(--percuia-footer-text);
+  text-decoration: none;
+  transition: color 0.2s;
+}
+
+.footer-link:hover {
+  color: var(--percuia-secondary);
+}
+
+.social-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: rgba(255,255,255,0.08);
+  color: var(--percuia-footer-text);
+  font-size: 1rem;
+  text-decoration: none;
+  transition: background 0.2s, color 0.2s;
+}
+
+.social-icon:hover {
+  background: var(--percuia-primary);
+  color: #fff;
+}
+
+/* ── Buttons ── */
+.btn-primary {
+  background: var(--percuia-primary);
+  border-color: var(--percuia-primary);
+}
+
+.btn-primary:hover,
+.btn-primary:focus {
+  background: #4757d4;
+  border-color: #4757d4;
+}
+
+.btn-outline-primary {
+  color: var(--percuia-primary);
+  border-color: var(--percuia-primary);
+}
+
+.btn-outline-primary:hover {
+  background: var(--percuia-primary);
+  border-color: var(--percuia-primary);
+}
+
+/* ── Section Helpers ── */
+.section-badge {
+  display: inline-block;
+  background: rgba(91,106,240,0.10);
+  color: var(--percuia-primary);
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  padding: 0.35rem 0.9rem;
+  border-radius: 2rem;
+  margin-bottom: 0.75rem;
+}
+
+/* ── Responsive ── */
+@media (max-width: 575.98px) {
+  .percula-hero {
+    padding: 4rem 0 3rem;
+  }
+
+  .percula-hero h1 {
+    font-size: 2rem;
+  }
+
+  .stat-value {
+    font-size: 2rem;
+  }
+}
