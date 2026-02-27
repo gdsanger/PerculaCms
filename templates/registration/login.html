@@ -1,0 +1,102 @@
+{% extends "base.html" %}
+
+{% block title %}Anmelden – {{ site.site_name|default:"PerculaCMS" }}{% endblock %}
+
+{% block content %}
+<section class="percula-hero py-5" aria-label="Login">
+  <div class="container">
+    <div class="row justify-content-center">
+      <div class="col-sm-10 col-md-7 col-lg-5">
+        <div class="percula-card p-4 p-md-5">
+          <!-- Header -->
+          <div class="text-center mb-4">
+            <div class="percula-icon-box icon-primary mx-auto mb-3" style="width:60px;height:60px;font-size:1.6rem;">
+              <i class="bi bi-person-lock"></i>
+            </div>
+            <h1 class="h4 fw-bold mb-1">Willkommen zurück</h1>
+            <p class="text-muted small">Melden Sie sich an, um fortzufahren.</p>
+          </div>
+
+          <!-- Errors -->
+          {% if form.errors %}
+            <div class="alert alert-danger alert-dismissible fade show" role="alert">
+              <i class="bi bi-exclamation-triangle-fill me-2"></i>
+              Ungültige Anmeldedaten. Bitte versuchen Sie es erneut.
+              <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Schließen"></button>
+            </div>
+          {% endif %}
+
+          <form method="post" novalidate>
+            {% csrf_token %}
+            <input type="hidden" name="next" value="{{ next }}">
+
+            <div class="mb-3">
+              <label for="{{ form.username.id_for_label }}" class="form-label fw-semibold small">
+                Benutzername
+              </label>
+              <div class="input-group">
+                <span class="input-group-text"><i class="bi bi-person"></i></span>
+                <input type="text"
+                       name="{{ form.username.html_name }}"
+                       id="{{ form.username.id_for_label }}"
+                       class="form-control{% if form.username.errors %} is-invalid{% endif %}"
+                       placeholder="Ihr Benutzername"
+                       autofocus
+                       autocomplete="username"
+                       required>
+              </div>
+            </div>
+
+            <div class="mb-4">
+              <label for="{{ form.password.id_for_label }}" class="form-label fw-semibold small">
+                Passwort
+              </label>
+              <div class="input-group">
+                <span class="input-group-text"><i class="bi bi-lock"></i></span>
+                <input type="password"
+                       name="{{ form.password.html_name }}"
+                       id="{{ form.password.id_for_label }}"
+                       class="form-control{% if form.password.errors %} is-invalid{% endif %}"
+                       placeholder="Ihr Passwort"
+                       autocomplete="current-password"
+                       required>
+                <button class="btn btn-outline-secondary" type="button" id="togglePassword"
+                        title="Passwort anzeigen/verbergen">
+                  <i class="bi bi-eye" id="toggleIcon"></i>
+                </button>
+              </div>
+            </div>
+
+            <button type="submit" class="btn btn-primary w-100 btn-lg mb-3">
+              <i class="bi bi-box-arrow-in-right me-2"></i>Anmelden
+            </button>
+          </form>
+
+          <div class="text-center mt-3">
+            <a href="{% url 'core:home' %}" class="text-muted small">
+              <i class="bi bi-arrow-left me-1"></i>Zurück zur Startseite
+            </a>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+  (function () {
+    const btn  = document.getElementById('togglePassword');
+    const pw   = document.querySelector('input[name="password"]');
+    const icon = document.getElementById('toggleIcon');
+    if (btn && pw) {
+      btn.addEventListener('click', function () {
+        const visible = pw.type === 'text';
+        pw.type = visible ? 'password' : 'text';
+        icon.className = visible ? 'bi bi-eye' : 'bi bi-eye-slash';
+      });
+    }
+  })();
+</script>
+{% endblock %}
