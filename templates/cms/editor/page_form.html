@@ -116,6 +116,15 @@
                     <label class="form-label fw-semibold" for="id_summary">Zusammenfassung</label>
                     <textarea class="form-control" id="id_summary" name="summary"
                               rows="3" placeholder="Kurzbeschreibung (optional)">{% if posted %}{{ posted.summary }}{% elif page %}{{ page.summary }}{% endif %}</textarea>
+                    {% if page %}
+                    <div class="d-flex align-items-center gap-2 mt-1">
+                      <button type="button" class="btn btn-outline-secondary btn-sm" id="btn-optimize-summary"
+                              title="Zusammenfassung mit KI optimieren">
+                        <i class="bi bi-stars me-1"></i>Optimize Summary
+                      </button>
+                      <span id="summary-optimize-status" class="small"></span>
+                    </div>
+                    {% endif %}
                   </div>
 
                   <!-- Parent (only shown for edit, or when parent is not pre-set) -->
@@ -140,7 +149,18 @@
 
               <!-- ── Content (Quill) ── -->
               <div class="tab-pane fade" id="pane-content" role="tabpanel">
-                <label class="form-label fw-semibold">Inhalt</label>
+                <div class="d-flex justify-content-between align-items-center mb-2">
+                  <label class="form-label fw-semibold mb-0">Inhalt</label>
+                  {% if page %}
+                  <div class="d-flex align-items-center gap-2">
+                    <button type="button" class="btn btn-outline-secondary btn-sm" id="btn-optimize-content"
+                            title="Inhalt mit KI optimieren">
+                      <i class="bi bi-stars me-1"></i>Optimize Content
+                    </button>
+                    <span id="content-optimize-status" class="small"></span>
+                  </div>
+                  {% endif %}
+                </div>
                 <div id="quill-editor">{% if posted %}{{ posted.content_html|safe }}{% elif page %}{{ page.content_html|safe }}{% endif %}</div>
                 <!-- Hidden textarea carries the HTML to the server -->
                 <textarea name="content_html" id="id_content_html"
@@ -177,8 +197,9 @@
 {% block extra_js %}
 <script src="{% static 'vendor/quill/quill.min.js' %}"></script>
 <script>
+var quill;
 (function () {
-  var quill = new Quill('#quill-editor', {
+  quill = new Quill('#quill-editor', {
     theme: 'snow',
     modules: {
       toolbar: [
@@ -210,5 +231,88 @@
     }
   });
 })();
+
+{% if page %}
+(function () {
+  function getCsrfToken() {
+    var el = document.querySelector('[name=csrfmiddlewaretoken]');
+    return el ? el.value : '';
+  }
+
+  function setStatus(el, ok, message) {
+    el.innerHTML = ok
+      ? '<span class="text-success"><i class="bi bi-check-circle me-1"></i>' + message + '</span>'
+      : '<span class="text-danger"><i class="bi bi-exclamation-circle me-1"></i>' + message + '</span>';
+  }
+
+  // ── Optimize Summary ──
+  var btnSummary = document.getElementById('btn-optimize-summary');
+  if (btnSummary) {
+    btnSummary.addEventListener('click', async function () {
+      var statusEl = document.getElementById('summary-optimize-status');
+      var textarea = document.getElementById('id_summary');
+      btnSummary.disabled = true;
+      btnSummary.innerHTML = '<i class="bi bi-hourglass-split me-1"></i>Optimiere…';
+      statusEl.innerHTML = '';
+      try {
+        var resp = await fetch('{% url "cms:page-optimize-summary" page.pk %}', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/x-www-form-urlencoded',
+            'X-CSRFToken': getCsrfToken(),
+          },
+          body: new URLSearchParams({ summary: textarea.value }),
+        });
+        var data = await resp.json();
+        if (data.ok) {
+          textarea.value = data.text;
+          setStatus(statusEl, true, 'Optimiert');
+        } else {
+          setStatus(statusEl, false, data.error || 'Fehler');
+        }
+      } catch (err) {
+        setStatus(statusEl, false, 'Netzwerkfehler');
+      } finally {
+        btnSummary.disabled = false;
+        btnSummary.innerHTML = '<i class="bi bi-stars me-1"></i>Optimize Summary';
+      }
+    });
+  }
+
+  // ── Optimize Content ──
+  var btnContent = document.getElementById('btn-optimize-content');
+  if (btnContent) {
+    btnContent.addEventListener('click', async function () {
+      var statusEl = document.getElementById('content-optimize-status');
+      btnContent.disabled = true;
+      btnContent.innerHTML = '<i class="bi bi-hourglass-split me-1"></i>Optimiere…';
+      statusEl.innerHTML = '';
+      try {
+        var resp = await fetch('{% url "cms:page-optimize-content" page.pk %}', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/x-www-form-urlencoded',
+            'X-CSRFToken': getCsrfToken(),
+          },
+          body: new URLSearchParams({ content_html: quill.root.innerHTML }),
+        });
+        var data = await resp.json();
+        if (data.ok) {
+          quill.clipboard.dangerouslyPasteHTML(data.text);
+          document.getElementById('id_content_html').value = data.text;
+          setStatus(statusEl, true, 'Optimiert');
+        } else {
+          setStatus(statusEl, false, data.error || 'Fehler');
+        }
+      } catch (err) {
+        setStatus(statusEl, false, 'Netzwerkfehler');
+      } finally {
+        btnContent.disabled = false;
+        btnContent.innerHTML = '<i class="bi bi-stars me-1"></i>Optimize Content';
+      }
+    });
+  }
+})();
+{% endif %}
 </script>
 {% endblock %}

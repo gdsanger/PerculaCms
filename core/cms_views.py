@@ -1,8 +1,10 @@
 """CMS Editor Views – admin-only create/edit for Page objects.
 
 Routes (namespace ``cms``):
-  GET/POST  /_cms/pages/new/          ?category=<id>  [&parent=<id>]
+  GET/POST  /_cms/pages/new/              ?category=<id>  [&parent=<id>]
   GET/POST  /_cms/pages/<pk>/edit/
+  POST      /_cms/pages/<pk>/optimize-summary/
+  POST      /_cms/pages/<pk>/optimize-content/
 """
 
 import logging
@@ -10,6 +12,8 @@ import logging
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.core.exceptions import PermissionDenied, ValidationError
+from django.db import transaction
+from django.http import JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 
 from .models import Category, Page
@@ -178,3 +182,78 @@ def category_description_edit_view(request, pk):
     category.save()
     messages.success(request, f'Beschreibung von „{category.title}" wurde gespeichert.')
     return redirect('core:category-detail', slug=category.slug)
+
+
+# ---------------------------------------------------------------------------
+# AI Agent Optimization Views
+# ---------------------------------------------------------------------------
+
+def _get_client_ip(request) -> str | None:
+    """Extract the client IP address from the request."""
+    x_forwarded_for = request.META.get('HTTP_X_FORWARDED_FOR')
+    if x_forwarded_for:
+        return x_forwarded_for.split(',')[0].strip()
+    return request.META.get('REMOTE_ADDR')
+
+
+@login_required
+def page_optimize_summary_view(request, pk):
+    """Optimize the summary of a page via the text-optimization-agent and persist it."""
+    _require_cms_permission(request)
+
+    if request.method != 'POST':
+        return JsonResponse({'ok': False, 'error': 'Method not allowed.'}, status=405)
+
+    page = get_object_or_404(Page, pk=pk)
+    current_text = request.POST.get('summary', '').strip()
+
+    if not current_text:
+        return JsonResponse({'ok': False, 'error': 'Kein Text zum Optimieren.'}, status=400)
+
+    try:
+        from .services.agents.service import run_agent
+        result = run_agent(
+            'text-optimization-agent',
+            task_input=current_text,
+            user=request.user,
+            client_ip=_get_client_ip(request),
+        )
+        with transaction.atomic():
+            page.summary = result.output_text
+            page.save(update_fields=['summary', 'updated_at'])
+        return JsonResponse({'ok': True, 'text': result.output_text})
+    except Exception as exc:
+        logger.exception('Summary optimization failed for page pk=%s', pk)
+        return JsonResponse({'ok': False, 'error': str(exc)}, status=500)
+
+
+@login_required
+def page_optimize_content_view(request, pk):
+    """Optimize the content_html of a page via the text-optimization-agent and persist it."""
+    _require_cms_permission(request)
+
+    if request.method != 'POST':
+        return JsonResponse({'ok': False, 'error': 'Method not allowed.'}, status=405)
+
+    page = get_object_or_404(Page, pk=pk)
+    current_html = request.POST.get('content_html', '').strip()
+
+    if not current_html:
+        return JsonResponse({'ok': False, 'error': 'Kein Inhalt zum Optimieren.'}, status=400)
+
+    try:
+        from .services.agents.service import run_agent
+        result = run_agent(
+            'text-optimization-agent',
+            task_input=current_html,
+            user=request.user,
+            client_ip=_get_client_ip(request),
+        )
+        optimized_html = sanitize_html(result.output_text)
+        with transaction.atomic():
+            page.content_html = optimized_html
+            page.save(update_fields=['content_html', 'updated_at'])
+        return JsonResponse({'ok': True, 'text': optimized_html})
+    except Exception as exc:
+        logger.exception('Content optimization failed for page pk=%s', pk)
+        return JsonResponse({'ok': False, 'error': str(exc)}, status=500)
