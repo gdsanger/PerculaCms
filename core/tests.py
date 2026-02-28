@@ -972,6 +972,50 @@ class AIRouterTest(TestCase):
 
         self.assertEqual(result.provider, 'OpenAI')
 
+    def test_fallback_when_specific_model_not_found(self):
+        """Test that router falls back to any active model when specific model_id doesn't exist."""
+        from core.services.ai.router import AIRouter
+        from core.services.ai.schemas import AIResponse
+
+        router = AIRouter()
+        mock_resp = self._mock_provider_response()
+
+        with patch.object(router, '_build_provider') as mock_build:
+            mock_prov = MagicMock()
+            mock_prov.chat.return_value = mock_resp
+            mock_build.return_value = mock_prov
+
+            # Request a non-existent model_id, but with a valid provider_type
+            result = router.chat(
+                messages=[{'role': 'user', 'content': 'Hi'}],
+                provider_type='OpenAI',
+                model_id='gpt-4.1',  # This model doesn't exist in setUp
+            )
+
+        # Should successfully fall back to the existing 'gpt-4o' model
+        self.assertIsInstance(result, AIResponse)
+        self.assertEqual(result.provider, 'OpenAI')
+        self.assertEqual(result.model, 'gpt-4o')  # Falls back to existing model
+
+    def test_fallback_fails_when_no_model_for_provider(self):
+        """Test that router raises error when provider has no active models."""
+        from core.services.ai.router import AIRouter
+        from core.services.base import ServiceNotConfigured
+
+        # Create a provider with no models
+        gemini_provider = AIProvider.objects.create(
+            name='Gemini Test', provider_type='Gemini', api_key='test-key',
+        )
+
+        router = AIRouter()
+
+        with self.assertRaises(ServiceNotConfigured):
+            router.chat(
+                messages=[{'role': 'user', 'content': 'Hi'}],
+                provider_type='Gemini',
+                model_id='gemini-pro',
+            )
+
 
 # ---------------------------------------------------------------------------
 # Page Service Tests
