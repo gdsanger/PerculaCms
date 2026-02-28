@@ -225,6 +225,7 @@ def create_page(
     """Create a new Page, sanitising HTML and auto-generating slug if empty.
 
     Prefers content_html_source if provided, falls back to content_html for backward compatibility.
+    Both fields are populated to maintain backward compatibility.
     """
     if not slug:
         slug = _auto_slug(title, category)
@@ -239,7 +240,7 @@ def create_page(
         slug=slug,
         summary=summary,
         status=status,
-        content_html=cms_sanitize_html(content_html),  # Keep for backward compatibility
+        content_html=cms_sanitize_html(source_content),  # Populate for backward compatibility
         content_html_source=cms_sanitize_html(source_content),
         order_in_category=order_in_category,
     )
@@ -263,6 +264,7 @@ def update_page(
     """Update an existing Page, sanitising HTML and auto-generating slug if empty.
 
     Prefers content_html_source if provided, falls back to content_html for backward compatibility.
+    Both fields are populated to maintain backward compatibility.
     """
     if not slug:
         slug = _auto_slug(title, page.category, exclude_pk=page.pk)
@@ -274,7 +276,7 @@ def update_page(
     page.slug = slug
     page.summary = summary
     page.status = status
-    page.content_html = cms_sanitize_html(content_html)  # Keep for backward compatibility
+    page.content_html = cms_sanitize_html(source_content)  # Populate for backward compatibility
     page.content_html_source = cms_sanitize_html(source_content)
     page.parent = parent
     page.clean()

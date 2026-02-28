@@ -77,7 +77,8 @@ def page_create_view(request):
         slug = request.POST.get('slug', '').strip()
         summary = request.POST.get('summary', '').strip()
         status = request.POST.get('status', Page.Status.DRAFT)
-        content_html_source = request.POST.get('content_html_source', '')
+        # Support both content_html_source (new) and content_html (backward compatibility)
+        content_html_source = request.POST.get('content_html_source', '') or request.POST.get('content_html', '')
 
         if not title:
             messages.error(request, 'Titel ist erforderlich.')
@@ -128,7 +129,8 @@ def page_edit_view(request, pk):
         slug = request.POST.get('slug', '').strip()
         summary = request.POST.get('summary', '').strip()
         status = request.POST.get('status', page.status)
-        content_html_source = request.POST.get('content_html_source', '')
+        # Support both content_html_source (new) and content_html (backward compatibility)
+        content_html_source = request.POST.get('content_html_source', '') or request.POST.get('content_html', '')
         parent_id = request.POST.get('parent') or None
         parent = get_object_or_404(Page, pk=parent_id, category=category) if parent_id else None
 
