@@ -290,5 +290,5 @@ def page_optimize_content_view(request, pk):
     except Exception as e:
         logger.error(f"Failed to optimize content for page {page.pk}: {e}")
         return JsonResponse({
-            'error': f'Optimierung fehlgeschlagen: {str(e)}'
+            'error': 'Optimierung fehlgeschlagen. Bitte versuchen Sie es später erneut.'
         }, status=500)
