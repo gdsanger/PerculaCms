@@ -86,12 +86,7 @@ def get_client() -> weaviate.WeaviateClient:
 
     auth = AuthApiKey(cfg["api_key"]) if cfg["api_key"] else None
 
-    logger.debug(
-        "Connecting to Weaviate at %s (http=%s, grpc=%s)",
-        cfg["url"],
-        cfg["http_port"],
-        cfg["grpc_port"],
-    )
+    logger.debug("Connecting to Weaviate client.")
 
     client = weaviate.connect_to_local(
         host=cfg["url"],
