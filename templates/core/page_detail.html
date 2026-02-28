@@ -53,7 +53,15 @@
       </header>
 
       <!-- Page content -->
-      {% if page.content_html %}
+      {% if page.content_html_layout %}
+        <article class="cms-content">
+          {{ page.content_html_layout|safe }}
+        </article>
+      {% elif page.content_html_source %}
+        <article class="cms-content">
+          {{ page.content_html_source|safe }}
+        </article>
+      {% elif page.content_html %}
         <article class="cms-content">
           {{ page.content_html|safe }}
         </article>

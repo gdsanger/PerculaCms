@@ -16,7 +16,7 @@ class AgentRegistryTest(TestCase):
         self.assertEqual(agent.agent_id, 'text-optimization-agent')
         self.assertEqual(agent.name, 'text-optimization-agent')
         self.assertEqual(agent.provider, 'OpenAI')
-        self.assertEqual(agent.model, 'gpt-4.1')
+        self.assertEqual(agent.model, 'gpt-5.2')
         self.assertIsNotNone(agent.role)
         self.assertIsNotNone(agent.task)
 

@@ -16,7 +16,7 @@ from django.http import JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 
 from .models import Category, Page
-from .services.page_service import cms_sanitize_html, create_page, sanitize_html, update_page
+from .services.page_service import cms_sanitize_html, create_page, sanitize_html, sanitize_layout_html, update_page
 from .services.agents.service import run_agent
 from .services.agents.registry import AgentNotFoundError
 
@@ -77,7 +77,8 @@ def page_create_view(request):
         slug = request.POST.get('slug', '').strip()
         summary = request.POST.get('summary', '').strip()
         status = request.POST.get('status', Page.Status.DRAFT)
-        content_html = request.POST.get('content_html', '')
+        # Support both content_html_source (new) and content_html (backward compatibility)
+        content_html_source = request.POST.get('content_html_source', '') or request.POST.get('content_html', '')
 
         if not title:
             messages.error(request, 'Titel ist erforderlich.')
@@ -92,7 +93,7 @@ def page_create_view(request):
                 slug=slug,
                 summary=summary,
                 status=status,
-                content_html=content_html,
+                content_html_source=content_html_source,
                 parent=parent,
             )
         except ValidationError as exc:
@@ -128,7 +129,8 @@ def page_edit_view(request, pk):
         slug = request.POST.get('slug', '').strip()
         summary = request.POST.get('summary', '').strip()
         status = request.POST.get('status', page.status)
-        content_html = request.POST.get('content_html', '')
+        # Support both content_html_source (new) and content_html (backward compatibility)
+        content_html_source = request.POST.get('content_html_source', '') or request.POST.get('content_html', '')
         parent_id = request.POST.get('parent') or None
         parent = get_object_or_404(Page, pk=parent_id, category=category) if parent_id else None
 
@@ -145,7 +147,7 @@ def page_edit_view(request, pk):
                 slug=slug,
                 summary=summary,
                 status=status,
-                content_html=content_html,
+                content_html_source=content_html_source,
                 parent=parent,
             )
         except ValidationError as exc:
@@ -296,7 +298,11 @@ def page_create_summary_view(request, pk):
 
 @login_required
 def page_optimize_content_view(request, pk):
-    """Restructure page content into a Bootstrap layout using content-html-layout-agent."""
+    """Restructure page content into a Bootstrap layout using content-html-layout-agent.
+
+    DEPRECATED: This view is kept for backward compatibility.
+    Use page_optimize_layout_view instead which writes to content_html_layout.
+    """
     _require_cms_permission(request)
 
     if request.method != 'POST':
@@ -348,4 +354,64 @@ def page_optimize_content_view(request, pk):
         logger.error(f"Failed to restructure content for page {page.pk}: {e}")
         return JsonResponse({
             'error': 'Optimierung fehlgeschlagen. Bitte versuchen Sie es später erneut.'
+        }, status=500)
+
+
+@login_required
+def page_optimize_layout_view(request, pk):
+    """Generate Bootstrap layout from content_html_source using content-html-layout-agent.
+
+    This writes to content_html_layout field only, keeping content_html_source unchanged.
+    """
+    _require_cms_permission(request)
+
+    if request.method != 'POST':
+        return JsonResponse({'error': 'POST request required'}, status=405)
+
+    page = get_object_or_404(Page, pk=pk)
+
+    # Get current source content
+    current_content = page.content_html_source or ''
+    if not current_content.strip():
+        return JsonResponse({
+            'error': 'Quell-Inhalt ist leer. Bitte fügen Sie Text hinzu, bevor Sie ein Layout erstellen.'
+        }, status=400)
+
+    try:
+        # Run the content-html-layout-agent
+        result = run_agent(
+            'content-html-layout-agent',
+            task_input=current_content,
+            user=request.user,
+            client_ip=request.META.get('REMOTE_ADDR'),
+        )
+
+        # Normalize output: empty/whitespace → ""
+        new_html = result.output_text.strip() if result.output_text else ''
+
+        # Sanitize the layout HTML with Bootstrap allowlist
+        layout_content = sanitize_layout_html(new_html) if new_html else ''
+
+        # Update only the layout field
+        page.content_html_layout = layout_content
+        page.save(update_fields=['content_html_layout'])
+
+        logger.info(f"Page {page.pk} layout generated from source by {request.user.username}")
+
+        return JsonResponse({
+            'success': True,
+            'layout_html': layout_content,
+            'message': 'Layout wurde erfolgreich aus dem Quell-Inhalt erstellt.'
+        })
+
+    except AgentNotFoundError as e:
+        logger.error(f"Agent not found: {e}")
+        return JsonResponse({
+            'error': 'Layout-Agent nicht gefunden.'
+        }, status=500)
+
+    except Exception as e:
+        logger.error(f"Failed to generate layout for page {page.pk}: {e}")
+        return JsonResponse({
+            'error': 'Layout-Erstellung fehlgeschlagen. Bitte versuchen Sie es später erneut.'
         }, status=500)
