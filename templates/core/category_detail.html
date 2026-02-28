@@ -6,13 +6,23 @@
 
 {% block content %}
 <div class="container py-5">
-  <header class="mb-5">
-    {% if category.icon %}
-      <i class="{{ category.icon }} fs-2 me-2 text-primary"></i>
-    {% endif %}
-    <h1 class="display-5 fw-bold">{{ category.title }}</h1>
-    {% if category.description %}
-      <p class="lead text-muted">{{ category.description }}</p>
+  <header class="mb-5 d-flex align-items-start justify-content-between gap-3">
+    <div>
+      {% if category.icon %}
+        <i class="{{ category.icon }} fs-2 me-2 text-primary"></i>
+      {% endif %}
+      <h1 class="display-5 fw-bold">{{ category.title }}</h1>
+      {% if category.description %}
+        <p class="lead text-muted">{{ category.description }}</p>
+      {% endif %}
+    </div>
+
+    <!-- CMS Action Button (admin only) -->
+    {% if request.user.is_superuser or perms.core.manage_content %}
+      <a href="{% url 'cms:page-create' %}?category={{ category.pk }}"
+         class="btn btn-sm btn-outline-primary flex-shrink-0">
+        <i class="bi bi-plus-lg me-1"></i>Seite
+      </a>
     {% endif %}
   </header>
 
@@ -23,14 +33,20 @@
           <div class="card h-100 shadow-sm">
             <div class="card-body">
               <h5 class="card-title">{{ page.title }}</h5>
-              {% if page.meta_description %}
-                <p class="card-text text-muted small">{{ page.meta_description }}</p>
+              {% if page.summary %}
+                <p class="card-text text-muted small">{{ page.summary }}</p>
               {% endif %}
             </div>
-            <div class="card-footer bg-transparent border-0">
+            <div class="card-footer bg-transparent border-0 d-flex justify-content-between align-items-center">
               <a href="{{ page.get_absolute_url }}" class="btn btn-sm btn-outline-primary">
                 Mehr erfahren <i class="bi bi-arrow-right ms-1"></i>
               </a>
+              {% if request.user.is_superuser or perms.core.manage_content %}
+                <a href="{% url 'cms:page-edit' page.pk %}"
+                   class="btn btn-sm btn-link text-muted p-0" title="Bearbeiten">
+                  <i class="bi bi-pencil"></i>
+                </a>
+              {% endif %}
             </div>
           </div>
         </div>
@@ -41,3 +57,4 @@
   {% endif %}
 </div>
 {% endblock %}
+

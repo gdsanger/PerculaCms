@@ -164,6 +164,8 @@ class Page(models.Model):
     )
     # Publishing
     published_at = models.DateTimeField(null=True, blank=True)
+    # HTML content (Quill editor output, server-side sanitised)
+    content_html = models.TextField(blank=True, default='')
     # Tags
     audience_tags = models.JSONField(default=list)
     intent_tags = models.JSONField(default=list)
@@ -174,6 +176,9 @@ class Page(models.Model):
         ordering = ['order_in_category']
         verbose_name = 'Page'
         verbose_name_plural = 'Pages'
+        permissions = [
+            ('manage_content', 'Can create and edit pages via the inline CMS editor'),
+        ]
         constraints = [
             models.UniqueConstraint(fields=['category', 'slug'], name='unique_page_slug_per_category'),
         ]

@@ -1,0 +1,110 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}{{ page.seo_title|default:page.title }} – {{ site.site_name|default:"PerculaCMS" }}{% endblock %}
+{% block meta_description %}{{ page.seo_description|default:page.summary|default:page.title }}{% endblock %}
+
+{% block content %}
+<div class="container py-5">
+
+  <!-- Breadcrumb -->
+  <nav aria-label="breadcrumb" class="mb-4">
+    <ol class="breadcrumb">
+      <li class="breadcrumb-item"><a href="{% url 'core:home' %}">Home</a></li>
+      <li class="breadcrumb-item">
+        <a href="{% url 'core:category-detail' category.slug %}">{{ category.title }}</a>
+      </li>
+      {% if page.parent %}
+        <li class="breadcrumb-item">
+          <a href="{{ page.parent.get_absolute_url }}">{{ page.parent.title }}</a>
+        </li>
+      {% endif %}
+      <li class="breadcrumb-item active" aria-current="page">{{ page.title }}</li>
+    </ol>
+  </nav>
+
+  <div class="row">
+    <div class="col-lg-8">
+
+      <!-- Page header -->
+      <header class="mb-4 d-flex align-items-start justify-content-between gap-3">
+        <div>
+          <h1 class="display-6 fw-bold mb-2">{{ page.title }}</h1>
+          {% if page.summary %}
+            <p class="lead text-muted">{{ page.summary }}</p>
+          {% endif %}
+        </div>
+
+        <!-- CMS Action Buttons (admin only) -->
+        {% if request.user.is_superuser or perms.core.manage_content %}
+          <div class="d-flex flex-column gap-2 flex-shrink-0">
+            <a href="{% url 'cms:page-edit' page.pk %}"
+               class="btn btn-sm btn-outline-primary">
+              <i class="bi bi-pencil me-1"></i>Bearbeiten
+            </a>
+            {% if not page.parent %}
+              <a href="{% url 'cms:page-create' %}?category={{ category.pk }}&parent={{ page.pk }}"
+                 class="btn btn-sm btn-outline-success">
+                <i class="bi bi-plus-lg me-1"></i>Unterseite
+              </a>
+            {% endif %}
+          </div>
+        {% endif %}
+      </header>
+
+      <!-- Page content -->
+      {% if page.content_html %}
+        <article class="cms-content">
+          {{ page.content_html|safe }}
+        </article>
+      {% else %}
+        <p class="text-muted fst-italic">Kein Inhalt vorhanden.</p>
+      {% endif %}
+
+      <!-- Child pages -->
+      {% if child_pages %}
+        <hr class="my-5">
+        <section>
+          <h2 class="h4 fw-semibold mb-3">Unterseiten</h2>
+          <div class="row g-3">
+            {% for child in child_pages %}
+              <div class="col-md-6">
+                <div class="card h-100 shadow-sm">
+                  <div class="card-body">
+                    <h5 class="card-title">{{ child.title }}</h5>
+                    {% if child.summary %}
+                      <p class="card-text text-muted small">{{ child.summary }}</p>
+                    {% endif %}
+                  </div>
+                  <div class="card-footer bg-transparent border-0">
+                    <a href="{{ child.get_absolute_url }}" class="btn btn-sm btn-outline-primary">
+                      Mehr erfahren <i class="bi bi-arrow-right ms-1"></i>
+                    </a>
+                  </div>
+                </div>
+              </div>
+            {% endfor %}
+          </div>
+        </section>
+      {% endif %}
+
+    </div>
+
+    <!-- Sidebar -->
+    <div class="col-lg-4">
+      <div class="card shadow-sm">
+        <div class="card-header">
+          <h6 class="mb-0 fw-semibold">{{ category.title }}</h6>
+        </div>
+        <div class="list-group list-group-flush">
+          <a href="{% url 'core:category-detail' category.slug %}"
+             class="list-group-item list-group-item-action text-muted small">
+            <i class="bi bi-arrow-left me-1"></i>Zurück zur Übersicht
+          </a>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</div>
+{% endblock %}

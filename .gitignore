@@ -3,6 +3,11 @@ __pycache__/
 *.py[codz]
 *$py.class
 
+# Node.js
+node_modules/
+package-lock.json
+package.json
+
 # C extensions
 *.so
 

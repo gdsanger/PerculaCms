@@ -1,0 +1,214 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}
+  {% if page %}Seite bearbeiten – {{ page.title }}{% else %}Neue Seite{% endif %}
+  – {{ site.site_name|default:"PerculaCMS" }}
+{% endblock %}
+
+{% block extra_head %}
+  <link rel="stylesheet" href="{% static 'vendor/quill/quill.snow.css' %}">
+  <style>
+    #quill-editor { min-height: 320px; background: #fff; }
+    [data-bs-theme="dark"] #quill-editor { background: #212529; color: #f8f9fa; }
+    .ql-toolbar.ql-snow { border-top-left-radius: .375rem; border-top-right-radius: .375rem; }
+    .ql-container.ql-snow { border-bottom-left-radius: .375rem; border-bottom-right-radius: .375rem; font-size: 1rem; }
+  </style>
+{% endblock %}
+
+{% block content %}
+<div class="container py-5">
+  <div class="row justify-content-center">
+    <div class="col-lg-9">
+
+      <!-- Breadcrumb -->
+      <nav aria-label="breadcrumb" class="mb-4">
+        <ol class="breadcrumb">
+          <li class="breadcrumb-item"><a href="{% url 'core:home' %}">Home</a></li>
+          <li class="breadcrumb-item">
+            <a href="{% url 'core:category-detail' category.slug %}">{{ category.title }}</a>
+          </li>
+          {% if page %}
+            <li class="breadcrumb-item active">Bearbeiten: {{ page.title }}</li>
+          {% else %}
+            <li class="breadcrumb-item active">Neue Seite</li>
+          {% endif %}
+        </ol>
+      </nav>
+
+      <div class="card shadow-sm">
+        <div class="card-header d-flex align-items-center gap-2">
+          <i class="bi bi-pencil-square text-primary fs-5"></i>
+          <h1 class="h5 mb-0">
+            {% if page %}Seite bearbeiten{% else %}Neue Seite erstellen{% endif %}
+          </h1>
+        </div>
+
+        <div class="card-body">
+          <form method="post" id="page-form" novalidate>
+            {% csrf_token %}
+
+            <!-- Hidden fields for category / parent when not editable -->
+            <input type="hidden" name="category" value="{{ category.pk }}">
+            {% if parent and not page %}
+              <input type="hidden" name="parent" value="{{ parent.pk }}">
+            {% endif %}
+
+            <!-- ── Tabs ── -->
+            <ul class="nav nav-tabs mb-4" id="editorTabs" role="tablist">
+              <li class="nav-item" role="presentation">
+                <button class="nav-link active" id="tab-basics" data-bs-toggle="tab"
+                        data-bs-target="#pane-basics" type="button" role="tab">
+                  <i class="bi bi-info-circle me-1"></i>Basics
+                </button>
+              </li>
+              <li class="nav-item" role="presentation">
+                <button class="nav-link" id="tab-content" data-bs-toggle="tab"
+                        data-bs-target="#pane-content" type="button" role="tab">
+                  <i class="bi bi-file-text me-1"></i>Inhalt
+                </button>
+              </li>
+            </ul>
+
+            <div class="tab-content">
+
+              <!-- ── Basics ── -->
+              <div class="tab-pane fade show active" id="pane-basics" role="tabpanel">
+
+                <div class="row g-3">
+                  <!-- Title -->
+                  <div class="col-12">
+                    <label class="form-label fw-semibold" for="id_title">Titel *</label>
+                    <input type="text" class="form-control" id="id_title" name="title"
+                           value="{% if posted %}{{ posted.title }}{% elif page %}{{ page.title }}{% endif %}"
+                           placeholder="Seitentitel" required>
+                  </div>
+
+                  <!-- Slug -->
+                  <div class="col-md-8">
+                    <label class="form-label fw-semibold" for="id_slug">Slug</label>
+                    <div class="input-group">
+                      <span class="input-group-text text-muted small">/{{ category.slug }}/</span>
+                      <input type="text" class="form-control" id="id_slug" name="slug"
+                             value="{% if posted %}{{ posted.slug }}{% elif page %}{{ page.slug }}{% endif %}"
+                             placeholder="auto-generiert wenn leer">
+                    </div>
+                    <div class="form-text">Leer lassen für automatische Generierung aus dem Titel.</div>
+                  </div>
+
+                  <!-- Status -->
+                  <div class="col-md-4">
+                    <label class="form-label fw-semibold" for="id_status">Status</label>
+                    <select class="form-select" id="id_status" name="status">
+                      {% for value, label in status_choices %}
+                        <option value="{{ value }}"
+                          {% if posted %}{% if posted.status == value %}selected{% endif %}
+                          {% elif page %}{% if page.status == value %}selected{% endif %}
+                          {% else %}{% if value == 'draft' %}selected{% endif %}{% endif %}>
+                          {{ label }}
+                        </option>
+                      {% endfor %}
+                    </select>
+                  </div>
+
+                  <!-- Summary -->
+                  <div class="col-12">
+                    <label class="form-label fw-semibold" for="id_summary">Zusammenfassung</label>
+                    <textarea class="form-control" id="id_summary" name="summary"
+                              rows="3" placeholder="Kurzbeschreibung (optional)">{% if posted %}{{ posted.summary }}{% elif page %}{{ page.summary }}{% endif %}</textarea>
+                  </div>
+
+                  <!-- Parent (only shown for edit, or when parent is not pre-set) -->
+                  {% if page or not parent %}
+                    <div class="col-12">
+                      <label class="form-label fw-semibold" for="id_parent">Übergeordnete Seite</label>
+                      <select class="form-select" id="id_parent" name="parent">
+                        <option value="">— keine (Root-Seite) —</option>
+                        {% for p in parent_pages %}
+                          <option value="{{ p.pk }}"
+                            {% if posted %}{% if posted.parent == p.pk|stringformat:"s" %}selected{% endif %}
+                            {% elif page %}{% if page.parent_id == p.pk %}selected{% endif %}{% endif %}>
+                            {{ p.title }}
+                          </option>
+                        {% endfor %}
+                      </select>
+                    </div>
+                  {% endif %}
+
+                </div>
+              </div>
+
+              <!-- ── Content (Quill) ── -->
+              <div class="tab-pane fade" id="pane-content" role="tabpanel">
+                <label class="form-label fw-semibold">Inhalt</label>
+                <div id="quill-editor">{% if posted %}{{ posted.content_html|safe }}{% elif page %}{{ page.content_html|safe }}{% endif %}</div>
+                <!-- Hidden textarea carries the HTML to the server -->
+                <textarea name="content_html" id="id_content_html"
+                          class="d-none" aria-hidden="true"></textarea>
+                <div class="form-text mt-2">
+                  <i class="bi bi-shield-check me-1 text-success"></i>
+                  HTML wird serverseitig bereinigt (Allowlist).
+                </div>
+              </div>
+
+            </div>{# end tab-content #}
+
+            <!-- Actions -->
+            <div class="d-flex justify-content-between align-items-center mt-4 pt-3 border-top">
+              <a href="{% if page %}{{ page.get_absolute_url }}{% else %}{% url 'core:category-detail' category.slug %}{% endif %}"
+                 class="btn btn-outline-secondary">
+                <i class="bi bi-x-lg me-1"></i>Abbrechen
+              </a>
+              <button type="submit" class="btn btn-primary px-4">
+                <i class="bi bi-check-lg me-1"></i>
+                {% if page %}Änderungen speichern{% else %}Seite erstellen{% endif %}
+              </button>
+            </div>
+
+          </form>
+        </div>{# card-body #}
+      </div>{# card #}
+
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="{% static 'vendor/quill/quill.min.js' %}"></script>
+<script>
+(function () {
+  var quill = new Quill('#quill-editor', {
+    theme: 'snow',
+    modules: {
+      toolbar: [
+        [{ header: [1, 2, 3, 4, false] }],
+        ['bold', 'italic', 'underline', 'strike'],
+        ['blockquote', 'code-block'],
+        [{ list: 'ordered' }, { list: 'bullet' }],
+        ['link'],
+        ['clean'],
+      ]
+    }
+  });
+
+  // Sync to hidden textarea on submit
+  document.getElementById('page-form').addEventListener('submit', function () {
+    document.getElementById('id_content_html').value = quill.root.innerHTML;
+  });
+
+  // Auto-generate slug from title (only when slug field is empty)
+  var titleInput = document.getElementById('id_title');
+  var slugInput = document.getElementById('id_slug');
+  titleInput.addEventListener('input', function () {
+    if (slugInput.value === '') {
+      slugInput.value = titleInput.value
+        .toLowerCase()
+        .replace(/[^a-z0-9\s-]/g, '')
+        .trim()
+        .replace(/[\s]+/g, '-');
+    }
+  });
+})();
+</script>
+{% endblock %}
