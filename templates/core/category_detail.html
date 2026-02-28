@@ -1,0 +1,43 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}{{ category.title }} – {{ site.site_name|default:"PerculaCMS" }}{% endblock %}
+{% block meta_description %}{{ category.description|default:category.title }}{% endblock %}
+
+{% block content %}
+<div class="container py-5">
+  <header class="mb-5">
+    {% if category.icon %}
+      <i class="{{ category.icon }} fs-2 me-2 text-primary"></i>
+    {% endif %}
+    <h1 class="display-5 fw-bold">{{ category.title }}</h1>
+    {% if category.description %}
+      <p class="lead text-muted">{{ category.description }}</p>
+    {% endif %}
+  </header>
+
+  {% if pages %}
+    <div class="row g-4">
+      {% for page in pages %}
+        <div class="col-md-6 col-lg-4">
+          <div class="card h-100 shadow-sm">
+            <div class="card-body">
+              <h5 class="card-title">{{ page.title }}</h5>
+              {% if page.meta_description %}
+                <p class="card-text text-muted small">{{ page.meta_description }}</p>
+              {% endif %}
+            </div>
+            <div class="card-footer bg-transparent border-0">
+              <a href="{{ page.get_absolute_url }}" class="btn btn-sm btn-outline-primary">
+                Mehr erfahren <i class="bi bi-arrow-right ms-1"></i>
+              </a>
+            </div>
+          </div>
+        </div>
+      {% endfor %}
+    </div>
+  {% else %}
+    <p class="text-muted">Noch keine Inhalte in dieser Kategorie vorhanden.</p>
+  {% endif %}
+</div>
+{% endblock %}

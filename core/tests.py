@@ -100,8 +100,96 @@ class CategoryModelTest(TestCase):
 
 
 # ---------------------------------------------------------------------------
-# Page Tests
+# CategoryDetailView Tests
 # ---------------------------------------------------------------------------
+
+class CategoryDetailViewTest(TestCase):
+    def setUp(self):
+        self.cat = Category.objects.create(
+            key='services', title='Services', slug='services',
+            order=1, is_visible=True, nav_placement=Category.NavPlacement.HEADER,
+        )
+
+    def test_returns_200_for_visible_category(self):
+        response = self.client.get(reverse('core:category-detail', args=['services']))
+        self.assertEqual(response.status_code, 200)
+
+    def test_uses_correct_template(self):
+        response = self.client.get(reverse('core:category-detail', args=['services']))
+        self.assertTemplateUsed(response, 'core/category_detail.html')
+        self.assertTemplateUsed(response, 'base.html')
+
+    def test_context_contains_category_and_pages(self):
+        response = self.client.get(reverse('core:category-detail', args=['services']))
+        self.assertEqual(response.context['category'], self.cat)
+        self.assertIn('pages', response.context)
+
+    def test_returns_404_for_invisible_category(self):
+        Category.objects.create(
+            key='hidden', title='Hidden', slug='hidden',
+            order=2, is_visible=False,
+        )
+        response = self.client.get(reverse('core:category-detail', args=['hidden']))
+        self.assertEqual(response.status_code, 404)
+
+    def test_returns_404_for_unknown_slug(self):
+        response = self.client.get(reverse('core:category-detail', args=['does-not-exist']))
+        self.assertEqual(response.status_code, 404)
+
+    def test_empty_pages_renders_without_error(self):
+        response = self.client.get(reverse('core:category-detail', args=['services']))
+        self.assertEqual(response.status_code, 200)
+        self.assertQuerySetEqual(response.context['pages'], [])
+
+
+# ---------------------------------------------------------------------------
+# nav_categories Context Processor Tests
+# ---------------------------------------------------------------------------
+
+class NavCategoriesContextProcessorTest(TestCase):
+    def test_nav_categories_present_on_home(self):
+        response = self.client.get(reverse('core:home'))
+        self.assertIn('nav_categories', response.context)
+
+    def test_nav_categories_only_header_and_visible(self):
+        Category.objects.create(
+            key='header-cat', title='Header Cat', slug='header-cat',
+            order=1, is_visible=True, nav_placement=Category.NavPlacement.HEADER,
+        )
+        Category.objects.create(
+            key='footer-cat', title='Footer Cat', slug='footer-cat',
+            order=2, is_visible=True, nav_placement=Category.NavPlacement.FOOTER,
+        )
+        Category.objects.create(
+            key='hidden-cat', title='Hidden Cat', slug='hidden-cat',
+            order=3, is_visible=False, nav_placement=Category.NavPlacement.HEADER,
+        )
+        response = self.client.get(reverse('core:home'))
+        slugs = list(response.context['nav_categories'].values_list('slug', flat=True))
+        self.assertIn('header-cat', slugs)
+        self.assertNotIn('footer-cat', slugs)
+        self.assertNotIn('hidden-cat', slugs)
+
+    def test_nav_categories_sorted_by_order(self):
+        Category.objects.create(
+            key='z-cat', title='Z Cat', slug='z-cat',
+            order=2, is_visible=True, nav_placement=Category.NavPlacement.HEADER,
+        )
+        Category.objects.create(
+            key='a-cat', title='A Cat', slug='a-cat',
+            order=1, is_visible=True, nav_placement=Category.NavPlacement.HEADER,
+        )
+        response = self.client.get(reverse('core:home'))
+        slugs = list(response.context['nav_categories'].values_list('slug', flat=True))
+        self.assertEqual(slugs, ['a-cat', 'z-cat'])
+
+    def test_empty_nav_categories_renders_without_error(self):
+        response = self.client.get(reverse('core:home'))
+        self.assertEqual(response.status_code, 200)
+        self.assertQuerySetEqual(list(response.context['nav_categories']), [])
+
+
+
 
 class PageModelTest(TestCase):
     def setUp(self):
