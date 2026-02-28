@@ -1,5 +1,5 @@
 from django.contrib.contenttypes.models import ContentType
-from django.test import TestCase
+from django.test import TestCase, override_settings
 from django.urls import reverse
 from django.core.exceptions import ValidationError
 from unittest.mock import MagicMock, patch
@@ -1089,6 +1089,34 @@ class PageServiceTest(TestCase):
         self.assertIn('<p>ok</p>', updated.content_html)
         self.assertNotIn('<script>', updated.content_html)
 
+    @override_settings(CMS_DISABLE_HTML_SANITIZATION=True)
+    def test_create_page_skips_sanitization_when_flag_enabled(self):
+        from core.services.page_service import create_page
+        dirty = '<p class="text-center">Safe</p><script>alert("xss")</script>'
+        with patch('core.services.page_service.sanitize_html') as mock_sanitize:
+            page = create_page(category=self.cat, title='Flag Test', content_html=dirty)
+            mock_sanitize.assert_not_called()
+        self.assertEqual(page.content_html, dirty)
+
+    @override_settings(CMS_DISABLE_HTML_SANITIZATION=True)
+    def test_update_page_skips_sanitization_when_flag_enabled(self):
+        from core.services.page_service import create_page, update_page
+        page = create_page(category=self.cat, title='Flag Update')
+        dirty = '<p style="color:red">text</p><script>bad()</script>'
+        with patch('core.services.page_service.sanitize_html') as mock_sanitize:
+            updated = update_page(page, title='Flag Update', status=Page.Status.DRAFT,
+                                  content_html=dirty)
+            mock_sanitize.assert_not_called()
+        self.assertEqual(updated.content_html, dirty)
+
+    @override_settings(CMS_DISABLE_HTML_SANITIZATION=False)
+    def test_create_page_sanitizes_html_when_flag_disabled(self):
+        from core.services.page_service import create_page
+        dirty = '<p>Safe</p><script>alert("xss")</script>'
+        page = create_page(category=self.cat, title='No Flag Test', content_html=dirty)
+        self.assertIn('<p>Safe</p>', page.content_html)
+        self.assertNotIn('<script>', page.content_html)
+
 
 # ---------------------------------------------------------------------------
 # PageDetailView Tests
@@ -1286,6 +1314,24 @@ class CategoryDescriptionEditViewTest(TestCase):
         response = self.client.get(self.url)
         self.assertEqual(response.status_code, 302)
         self.assertIn(self.cat.slug, response['Location'])
+
+    @override_settings(CMS_DISABLE_HTML_SANITIZATION=True)
+    def test_description_skips_sanitization_when_flag_enabled(self):
+        self.client.login(username='admin_desc', password='pass')
+        dirty = '<p class="lead" style="color:red">Raw</p><script>evil()</script>'
+        with patch('core.services.page_service.sanitize_html') as mock_sanitize:
+            self.client.post(self.url, {'description': dirty})
+            mock_sanitize.assert_not_called()
+        self.cat.refresh_from_db()
+        self.assertEqual(self.cat.description, dirty)
+
+    @override_settings(CMS_DISABLE_HTML_SANITIZATION=False)
+    def test_description_sanitized_when_flag_disabled(self):
+        self.client.login(username='admin_desc', password='pass')
+        self.client.post(self.url, {'description': '<p>Safe</p><script>evil()</script>'})
+        self.cat.refresh_from_db()
+        self.assertNotIn('<script>', self.cat.description)
+        self.assertIn('<p>Safe</p>', self.cat.description)
 
 
 # ==============================================================================

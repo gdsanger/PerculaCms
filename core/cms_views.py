@@ -16,7 +16,7 @@ from django.http import JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 
 from .models import Category, Page
-from .services.page_service import create_page, sanitize_html, update_page
+from .services.page_service import cms_sanitize_html, create_page, sanitize_html, update_page
 from .services.agents.service import run_agent
 from .services.agents.registry import AgentNotFoundError
 
@@ -179,7 +179,7 @@ def category_description_edit_view(request, pk):
         return redirect('core:category-detail', slug=category.slug)
 
     description = request.POST.get('description', '')
-    category.description = sanitize_html(description)
+    category.description = cms_sanitize_html(description)
     category.save()
     messages.success(request, f'Beschreibung von „{category.title}" wurde gespeichert.')
     return redirect('core:category-detail', slug=category.slug)
