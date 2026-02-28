@@ -971,3 +971,213 @@ class AIRouterTest(TestCase):
             )
 
         self.assertEqual(result.provider, 'OpenAI')
+
+
+# ---------------------------------------------------------------------------
+# Page Service Tests
+# ---------------------------------------------------------------------------
+
+class PageServiceTest(TestCase):
+    def setUp(self):
+        self.cat = Category.objects.create(key='blog', title='Blog', slug='blog', order=0)
+
+    def test_create_page_basic(self):
+        from core.services.page_service import create_page
+        page = create_page(category=self.cat, title='Hello World')
+        self.assertEqual(page.title, 'Hello World')
+        self.assertEqual(page.slug, 'hello-world')
+        self.assertEqual(page.category, self.cat)
+
+    def test_create_page_auto_slug(self):
+        from core.services.page_service import create_page
+        page = create_page(category=self.cat, title='Test Page')
+        self.assertEqual(page.slug, 'test-page')
+
+    def test_create_page_custom_slug(self):
+        from core.services.page_service import create_page
+        page = create_page(category=self.cat, title='Test Page', slug='custom-slug')
+        self.assertEqual(page.slug, 'custom-slug')
+
+    def test_create_page_auto_slug_uniqueness(self):
+        from core.services.page_service import create_page
+        p1 = create_page(category=self.cat, title='Duplicate')
+        p2 = create_page(category=self.cat, title='Duplicate')
+        self.assertNotEqual(p1.slug, p2.slug)
+        self.assertEqual(p2.slug, 'duplicate-1')
+
+    def test_create_page_sanitizes_html(self):
+        from core.services.page_service import create_page
+        dirty = '<p>Safe</p><script>alert("xss")</script>'
+        page = create_page(category=self.cat, title='HTML Test', content_html=dirty)
+        self.assertIn('<p>Safe</p>', page.content_html)
+        self.assertNotIn('<script>', page.content_html)
+
+    def test_create_page_strips_disallowed_tags(self):
+        from core.services.page_service import create_page
+        page = create_page(
+            category=self.cat, title='Img Test',
+            content_html='<p>text</p><img src="x" onerror="alert(1)">',
+        )
+        self.assertNotIn('<img', page.content_html)
+
+    def test_create_page_allows_anchor_with_href(self):
+        from core.services.page_service import create_page
+        page = create_page(
+            category=self.cat, title='Link Test',
+            content_html='<p><a href="https://example.com">link</a></p>',
+        )
+        self.assertIn('href="https://example.com"', page.content_html)
+
+    def test_update_page(self):
+        from core.services.page_service import create_page, update_page
+        page = create_page(category=self.cat, title='Old Title')
+        updated = update_page(page, title='New Title', status=Page.Status.PUBLISHED)
+        self.assertEqual(updated.title, 'New Title')
+        self.assertEqual(updated.status, Page.Status.PUBLISHED)
+
+    def test_update_page_sanitizes_html(self):
+        from core.services.page_service import create_page, update_page
+        page = create_page(category=self.cat, title='Page')
+        updated = update_page(
+            page, title='Page', status=Page.Status.DRAFT,
+            content_html='<p>ok</p><script>bad()</script>',
+        )
+        self.assertIn('<p>ok</p>', updated.content_html)
+        self.assertNotIn('<script>', updated.content_html)
+
+
+# ---------------------------------------------------------------------------
+# PageDetailView Tests
+# ---------------------------------------------------------------------------
+
+class PageDetailViewTest(TestCase):
+    def setUp(self):
+        self.cat = Category.objects.create(
+            key='docs', title='Docs', slug='docs', order=0, is_visible=True,
+        )
+        self.page = Page.objects.create(
+            category=self.cat, title='Intro', slug='intro',
+            status=Page.Status.PUBLISHED, order_in_category=0,
+        )
+
+    def test_returns_200_for_published_page(self):
+        response = self.client.get('/docs/intro/')
+        self.assertEqual(response.status_code, 200)
+
+    def test_uses_page_detail_template(self):
+        response = self.client.get('/docs/intro/')
+        self.assertTemplateUsed(response, 'core/page_detail.html')
+
+    def test_returns_404_for_draft_page(self):
+        draft = Page.objects.create(
+            category=self.cat, title='Draft', slug='draft',
+            status=Page.Status.DRAFT, order_in_category=1,
+        )
+        response = self.client.get(f'/docs/{draft.slug}/')
+        self.assertEqual(response.status_code, 404)
+
+    def test_returns_404_for_invisible_category(self):
+        cat2 = Category.objects.create(
+            key='hidden', title='Hidden', slug='hidden', order=1, is_visible=False,
+        )
+        Page.objects.create(
+            category=cat2, title='Page', slug='page',
+            status=Page.Status.PUBLISHED, order_in_category=0,
+        )
+        response = self.client.get('/hidden/page/')
+        self.assertEqual(response.status_code, 404)
+
+
+# ---------------------------------------------------------------------------
+# CMS Editor Views Tests
+# ---------------------------------------------------------------------------
+
+class CmsEditorPermissionTest(TestCase):
+    def setUp(self):
+        from django.contrib.auth import get_user_model
+        User = get_user_model()
+        self.cat = Category.objects.create(
+            key='test', title='Test', slug='test', order=0, is_visible=True,
+        )
+        self.admin = User.objects.create_superuser('admin', 'a@x.com', 'pass')
+        self.regular = User.objects.create_user('user', 'u@x.com', 'pass')
+
+    def test_create_redirects_anonymous_to_login(self):
+        url = f'//_cms/pages/new/?category={self.cat.pk}'
+        response = self.client.get(f'/_cms/pages/new/?category={self.cat.pk}')
+        self.assertIn(response.status_code, [302, 403])
+
+    def test_create_returns_403_for_unprivileged_user(self):
+        self.client.login(username='user', password='pass')
+        response = self.client.get(f'/_cms/pages/new/?category={self.cat.pk}')
+        self.assertEqual(response.status_code, 403)
+
+    def test_create_returns_200_for_superuser(self):
+        self.client.login(username='admin', password='pass')
+        response = self.client.get(f'/_cms/pages/new/?category={self.cat.pk}')
+        self.assertEqual(response.status_code, 200)
+
+    def test_create_post_creates_page_and_redirects(self):
+        self.client.login(username='admin', password='pass')
+        response = self.client.post(
+            f'/_cms/pages/new/?category={self.cat.pk}',
+            {
+                'category': self.cat.pk,
+                'title': 'My New Page',
+                'slug': '',
+                'summary': '',
+                'status': 'published',
+                'content_html': '<p>Hello</p>',
+            },
+        )
+        self.assertEqual(response.status_code, 302)
+        page = Page.objects.get(slug='my-new-page')
+        self.assertEqual(page.title, 'My New Page')
+        self.assertIn('<p>Hello</p>', page.content_html)
+
+    def test_create_post_no_title_returns_form(self):
+        self.client.login(username='admin', password='pass')
+        response = self.client.post(
+            f'/_cms/pages/new/?category={self.cat.pk}',
+            {'category': self.cat.pk, 'title': '', 'status': 'draft', 'content_html': ''},
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertTemplateUsed(response, 'cms/editor/page_form.html')
+
+    def test_edit_returns_200_for_superuser(self):
+        page = Page.objects.create(
+            category=self.cat, title='Edit Me', slug='edit-me',
+            status=Page.Status.DRAFT, order_in_category=0,
+        )
+        self.client.login(username='admin', password='pass')
+        response = self.client.get(f'/_cms/pages/{page.pk}/edit/')
+        self.assertEqual(response.status_code, 200)
+
+    def test_edit_post_updates_page(self):
+        page = Page.objects.create(
+            category=self.cat, title='Old', slug='old',
+            status=Page.Status.DRAFT, order_in_category=0,
+        )
+        self.client.login(username='admin', password='pass')
+        response = self.client.post(
+            f'/_cms/pages/{page.pk}/edit/',
+            {
+                'title': 'Updated Title',
+                'slug': '',
+                'summary': 'Updated summary',
+                'status': 'published',
+                'content_html': '<p>Updated content</p>',
+            },
+        )
+        self.assertEqual(response.status_code, 302)
+        page.refresh_from_db()
+        self.assertEqual(page.title, 'Updated Title')
+        self.assertEqual(page.status, Page.Status.PUBLISHED)
+
+    def test_user_with_permission_can_access_create(self):
+        from django.contrib.auth.models import Permission
+        perm = Permission.objects.get(codename='manage_content')
+        self.regular.user_permissions.add(perm)
+        self.client.login(username='user', password='pass')
+        response = self.client.get(f'/_cms/pages/new/?category={self.cat.pk}')
+        self.assertEqual(response.status_code, 200)
