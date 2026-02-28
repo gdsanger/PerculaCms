@@ -1377,13 +1377,13 @@ class PageOptimizationViewsTest(TestCase):
 
     @patch('core.cms_views.run_agent')
     def test_optimize_content_success(self, mock_run_agent):
-        """Test successful content optimization."""
+        """Test successful content layout optimization using content-html-layout-agent."""
         from core.services.agents.service import AgentRunResult
 
         # Mock agent response
         mock_result = AgentRunResult(
-            agent_id='text-optimization-agent',
-            output_text='<p>This is optimized test content without errors.</p>',
+            agent_id='content-html-layout-agent',
+            output_text='<div class="card"><div class="card-body"><p>This is optimized test content without errors.</p></div></div>',
             provider='OpenAI',
             model='gpt-4.1',
             input_tokens=15,
@@ -1399,9 +1399,39 @@ class PageOptimizationViewsTest(TestCase):
         self.assertTrue(data['success'])
         self.assertIn('optimized_text', data)
 
+        # Verify agent was called with content-html-layout-agent
+        call_args = mock_run_agent.call_args
+        self.assertEqual(call_args[0][0], 'content-html-layout-agent')
+
         # Verify page was updated
         self.page.refresh_from_db()
         self.assertIn('optimized test content', self.page.content_html)
+
+    @patch('core.cms_views.run_agent')
+    def test_optimize_content_empty_output(self, mock_run_agent):
+        """Test that blank agent output sets content_html to empty string."""
+        from core.services.agents.service import AgentRunResult
+
+        mock_result = AgentRunResult(
+            agent_id='content-html-layout-agent',
+            output_text='   ',
+            provider='OpenAI',
+            model='gpt-4.1',
+            input_tokens=15,
+            output_tokens=0
+        )
+        mock_run_agent.return_value = mock_result
+
+        url = reverse('cms:page-optimize-content', kwargs={'pk': self.page.pk})
+        response = self.client.post(url)
+
+        self.assertEqual(response.status_code, 200)
+        data = response.json()
+        self.assertTrue(data['success'])
+
+        # Verify page content_html was set to empty string
+        self.page.refresh_from_db()
+        self.assertEqual(self.page.content_html, '')
 
     def test_optimize_summary_empty(self):
         """Test optimization with empty summary."""

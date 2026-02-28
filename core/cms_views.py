@@ -296,7 +296,7 @@ def page_create_summary_view(request, pk):
 
 @login_required
 def page_optimize_content_view(request, pk):
-    """Optimize page content using text-optimization-agent."""
+    """Restructure page content into a Bootstrap layout using content-html-layout-agent."""
     _require_cms_permission(request)
 
     if request.method != 'POST':
@@ -312,37 +312,40 @@ def page_optimize_content_view(request, pk):
         }, status=400)
 
     try:
-        # Run the text-optimization-agent
+        # Run the content-html-layout-agent
         result = run_agent(
-            'text-optimization-agent',
+            'content-html-layout-agent',
             task_input=current_content,
             user=request.user,
             client_ip=request.META.get('REMOTE_ADDR'),
         )
 
+        # Normalize output: empty/whitespace → ""
+        new_html = result.output_text.strip() if result.output_text else ''
+
         # Sanitize the optimized content (for security)
-        optimized_content = sanitize_html(result.output_text)
+        optimized_content = sanitize_html(new_html) if new_html else ''
 
         # Update the page with the optimized content
         page.content_html = optimized_content
         page.save(update_fields=['content_html'])
 
-        logger.info(f"Page {page.pk} content optimized by {request.user.username}")
+        logger.info(f"Page {page.pk} content restructured to Bootstrap layout by {request.user.username}")
 
         return JsonResponse({
             'success': True,
             'optimized_text': optimized_content,
-            'message': 'Inhalt wurde erfolgreich optimiert.'
+            'message': 'Inhalt wurde erfolgreich in ein Bootstrap-Layout umstrukturiert.'
         })
 
     except AgentNotFoundError as e:
         logger.error(f"Agent not found: {e}")
         return JsonResponse({
-            'error': 'Optimierungs-Agent nicht gefunden.'
+            'error': 'Layout-Agent nicht gefunden.'
         }, status=500)
 
     except Exception as e:
-        logger.error(f"Failed to optimize content for page {page.pk}: {e}")
+        logger.error(f"Failed to restructure content for page {page.pk}: {e}")
         return JsonResponse({
             'error': 'Optimierung fehlgeschlagen. Bitte versuchen Sie es später erneut.'
         }, status=500)

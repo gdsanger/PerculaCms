@@ -20,6 +20,14 @@ class AgentRegistryTest(TestCase):
         self.assertIsNotNone(agent.role)
         self.assertIsNotNone(agent.task)
 
+    def test_load_content_html_layout_agent(self):
+        """Test that content-html-layout-agent can be loaded."""
+        agent = get_agent('content-html-layout-agent')
+        self.assertEqual(agent.agent_id, 'content-html-layout-agent')
+        self.assertEqual(agent.provider, 'OpenAI')
+        self.assertIsNotNone(agent.role)
+        self.assertIsNotNone(agent.task)
+
     def test_agent_not_found(self):
         """Test that AgentNotFoundError is raised for non-existent agent."""
         with self.assertRaises(AgentNotFoundError):
