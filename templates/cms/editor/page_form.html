@@ -58,13 +58,15 @@
             <ul class="nav nav-tabs mb-4" id="editorTabs" role="tablist">
               <li class="nav-item" role="presentation">
                 <button class="nav-link active" id="tab-basics" data-bs-toggle="tab"
-                        data-bs-target="#pane-basics" type="button" role="tab">
+                        data-bs-target="#pane-basics" type="button" role="tab"
+                        aria-controls="pane-basics" aria-selected="true">
                   <i class="bi bi-info-circle me-1"></i>Basics
                 </button>
               </li>
               <li class="nav-item" role="presentation">
                 <button class="nav-link" id="tab-content" data-bs-toggle="tab"
-                        data-bs-target="#pane-content" type="button" role="tab">
+                        data-bs-target="#pane-content" type="button" role="tab"
+                        aria-controls="pane-content" aria-selected="false">
                   <i class="bi bi-file-text me-1"></i>Inhalt
                 </button>
               </li>
@@ -73,7 +75,7 @@
             <div class="tab-content">
 
               <!-- ── Basics ── -->
-              <div class="tab-pane fade show active" id="pane-basics" role="tabpanel">
+              <div class="tab-pane fade show active" id="pane-basics" role="tabpanel" aria-labelledby="tab-basics">
 
                 <div class="row g-3">
                   <!-- Title -->
@@ -139,12 +141,12 @@
               </div>
 
               <!-- ── Content (Quill) ── -->
-              <div class="tab-pane fade" id="pane-content" role="tabpanel">
+              <div class="tab-pane fade" id="pane-content" role="tabpanel" aria-labelledby="tab-content">
                 <label class="form-label fw-semibold">Inhalt</label>
                 <div id="quill-editor">{% if posted %}{{ posted.content_html|safe }}{% elif page %}{{ page.content_html|safe }}{% endif %}</div>
                 <!-- Hidden textarea carries the HTML to the server -->
                 <textarea name="content_html" id="id_content_html"
-                          class="d-none" aria-hidden="true"></textarea>
+                          class="d-none" aria-hidden="true">{% if posted %}{{ posted.content_html }}{% elif page %}{{ page.content_html }}{% endif %}</textarea>
                 <div class="form-text mt-2">
                   <i class="bi bi-shield-check me-1 text-success"></i>
                   HTML wird serverseitig bereinigt (Allowlist).
@@ -178,23 +180,35 @@
 <script src="{% static 'vendor/quill/quill.min.js' %}"></script>
 <script>
 (function () {
-  var quill = new Quill('#quill-editor', {
-    theme: 'snow',
-    modules: {
-      toolbar: [
-        [{ header: [1, 2, 3, 4, false] }],
-        ['bold', 'italic', 'underline', 'strike'],
-        ['blockquote', 'code-block'],
-        [{ list: 'ordered' }, { list: 'bullet' }],
-        ['link'],
-        ['clean'],
-      ]
-    }
-  });
+  var quill = null;
 
-  // Sync to hidden textarea on submit
+  // Lazily initialise Quill the first time the content tab is shown so the
+  // editor is attached to a *visible* element.  Quill v1.x mis-measures height
+  // when initialised inside a hidden tab-pane (display:none), which prevents
+  // the editor from rendering and makes the "Inhalt" tab appear non-functional.
+  document.getElementById('tab-content').addEventListener('shown.bs.tab', function () {
+    quill = new Quill('#quill-editor', {
+      theme: 'snow',
+      modules: {
+        toolbar: [
+          [{ header: [1, 2, 3, 4, false] }],
+          ['bold', 'italic', 'underline', 'strike'],
+          ['blockquote', 'code-block'],
+          [{ list: 'ordered' }, { list: 'bullet' }],
+          ['link'],
+          ['clean'],
+        ]
+      }
+    });
+  }, { once: true });
+
+  // Sync Quill output to the hidden textarea on submit.
+  // The textarea is pre-populated server-side so content is preserved even
+  // when the user submits without opening the "Inhalt" tab.
   document.getElementById('page-form').addEventListener('submit', function () {
-    document.getElementById('id_content_html').value = quill.root.innerHTML;
+    if (quill) {
+      document.getElementById('id_content_html').value = quill.root.innerHTML;
+    }
   });
 
   // Auto-generate slug from title (only when slug field is empty)
