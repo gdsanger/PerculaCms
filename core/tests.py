@@ -1473,6 +1473,126 @@ class PageOptimizationViewsTest(TestCase):
 
         self.assertEqual(response.status_code, 405)
 
+    @patch('core.cms_views.run_agent')
+    def test_create_summary_from_content_success(self, mock_run_agent):
+        """Test successful summary creation from content_html."""
+        from core.services.agents.service import AgentRunResult
+
+        # Mock agent response
+        mock_result = AgentRunResult(
+            agent_id='summarize-text-agent',
+            output_text='This is a generated summary from the content.',
+            provider='OpenAI',
+            model='gpt-5.2',
+            input_tokens=50,
+            output_tokens=20
+        )
+        mock_run_agent.return_value = mock_result
+
+        url = reverse('cms:page-create-summary', kwargs={'pk': self.page.pk})
+        response = self.client.post(url)
+
+        self.assertEqual(response.status_code, 200)
+        data = response.json()
+        self.assertTrue(data['success'])
+        self.assertIn('created_text', data)
+        self.assertEqual(data['created_text'], 'This is a generated summary from the content.')
+
+        # Verify page was updated
+        self.page.refresh_from_db()
+        self.assertEqual(self.page.summary, 'This is a generated summary from the content.')
+
+        # Verify agent was called correctly with content_html
+        mock_run_agent.assert_called_once()
+        call_kwargs = mock_run_agent.call_args[1]
+        self.assertEqual(call_kwargs['task_input'], '<p>This is test content with errors.</p>')
+
+    def test_create_summary_empty_content(self):
+        """Test creation with empty content_html."""
+        self.page.content_html = ''
+        self.page.save()
+
+        url = reverse('cms:page-create-summary', kwargs={'pk': self.page.pk})
+        response = self.client.post(url)
+
+        self.assertEqual(response.status_code, 400)
+        data = response.json()
+        self.assertIn('error', data)
+        self.assertIn('leer', data['error'].lower())
+
+    @patch('core.cms_views.run_agent')
+    def test_create_summary_empty_agent_output(self, mock_run_agent):
+        """Test handling of empty/whitespace agent output."""
+        from core.services.agents.service import AgentRunResult
+
+        # Mock agent response with whitespace
+        mock_result = AgentRunResult(
+            agent_id='summarize-text-agent',
+            output_text='   \n\t  ',
+            provider='OpenAI',
+            model='gpt-5.2',
+            input_tokens=50,
+            output_tokens=1
+        )
+        mock_run_agent.return_value = mock_result
+
+        url = reverse('cms:page-create-summary', kwargs={'pk': self.page.pk})
+        response = self.client.post(url)
+
+        self.assertEqual(response.status_code, 200)
+        data = response.json()
+        self.assertTrue(data['success'])
+
+        # Verify summary was cleared
+        self.page.refresh_from_db()
+        self.assertEqual(self.page.summary, '')
+
+    @patch('core.cms_views.run_agent')
+    def test_create_summary_agent_error(self, mock_run_agent):
+        """Test handling of agent execution error."""
+        mock_run_agent.side_effect = Exception('AI service unavailable')
+
+        url = reverse('cms:page-create-summary', kwargs={'pk': self.page.pk})
+        response = self.client.post(url)
+
+        self.assertEqual(response.status_code, 500)
+        data = response.json()
+        self.assertIn('error', data)
+
+    def test_create_summary_requires_login(self):
+        """Test that creation requires authentication."""
+        self.client.logout()
+
+        url = reverse('cms:page-create-summary', kwargs={'pk': self.page.pk})
+        response = self.client.post(url)
+
+        # Should redirect to login
+        self.assertEqual(response.status_code, 302)
+
+    def test_create_summary_requires_permission(self):
+        """Test that creation requires CMS permission."""
+        from django.contrib.auth.models import User
+
+        # Create user without permission
+        User.objects.create_user(
+            username='noperm',
+            password='testpass123'
+        )
+        self.client.logout()
+        self.client.login(username='noperm', password='testpass123')
+
+        url = reverse('cms:page-create-summary', kwargs={'pk': self.page.pk})
+        response = self.client.post(url)
+
+        self.assertEqual(response.status_code, 403)
+
+    def test_create_summary_get_not_allowed(self):
+        """Test that GET requests are not allowed."""
+        url = reverse('cms:page-create-summary', kwargs={'pk': self.page.pk})
+        response = self.client.get(url)
+
+        self.assertEqual(response.status_code, 405)
+
 
 class AgentServiceIntegrationTest(TestCase):
     """Integration tests for the agent service."""

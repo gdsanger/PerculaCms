@@ -241,6 +241,60 @@ def page_optimize_summary_view(request, pk):
 
 
 @login_required
+def page_create_summary_view(request, pk):
+    """Create page summary from content_html using summarize-text-agent."""
+    _require_cms_permission(request)
+
+    if request.method != 'POST':
+        return JsonResponse({'error': 'POST request required'}, status=405)
+
+    page = get_object_or_404(Page, pk=pk)
+
+    # Get current content
+    current_content = page.content_html or ''
+    if not current_content.strip():
+        return JsonResponse({
+            'error': 'Inhalt ist leer. Bitte fügen Sie Inhalt hinzu, bevor Sie eine Zusammenfassung erstellen.'
+        }, status=400)
+
+    try:
+        # Run the summarize-text-agent
+        result = run_agent(
+            'summarize-text-agent',
+            task_input=current_content,
+            user=request.user,
+            client_ip=request.META.get('REMOTE_ADDR'),
+        )
+
+        # Handle empty/whitespace output
+        created_summary = result.output_text.strip() if result.output_text else ''
+
+        # Update the page with the created summary (even if empty)
+        page.summary = created_summary
+        page.save(update_fields=['summary'])
+
+        logger.info(f"Page {page.pk} summary created from content by {request.user.username}")
+
+        return JsonResponse({
+            'success': True,
+            'created_text': created_summary,
+            'message': 'Zusammenfassung wurde erfolgreich aus dem Inhalt erstellt.'
+        })
+
+    except AgentNotFoundError as e:
+        logger.error(f"Agent not found: {e}")
+        return JsonResponse({
+            'error': 'Zusammenfassungs-Agent nicht gefunden.'
+        }, status=500)
+
+    except Exception as e:
+        logger.error(f"Failed to create summary for page {page.pk}: {e}")
+        return JsonResponse({
+            'error': 'Erstellung fehlgeschlagen. Bitte versuchen Sie es später erneut.'
+        }, status=500)
+
+
+@login_required
 def page_optimize_content_view(request, pk):
     """Optimize page content using text-optimization-agent."""
     _require_cms_permission(request)
