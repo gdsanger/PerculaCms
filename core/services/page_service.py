@@ -10,6 +10,7 @@ import logging
 import re
 
 import bleach
+from django.conf import settings
 from django.utils.text import slugify
 
 from ..models import Category, Page
@@ -60,6 +61,21 @@ def sanitize_html(html: str) -> str:
     return clean
 
 
+def cms_sanitize_html(html: str) -> str:
+    """CMS-editor save wrapper: sanitize HTML unless the feature flag disables it.
+
+    When ``settings.CMS_DISABLE_HTML_SANITIZATION`` is ``True`` the raw HTML is
+    returned unchanged and a warning is logged (debug/test use only).
+    """
+    if getattr(settings, 'CMS_DISABLE_HTML_SANITIZATION', False):
+        logger.warning(
+            'CMS HTML sanitization skipped (CMS_DISABLE_HTML_SANITIZATION=true)'
+            ' - UNSAFE: raw HTML persisted'
+        )
+        return html if html else ''
+    return sanitize_html(html)
+
+
 def _auto_slug(title: str, category: Category, exclude_pk=None) -> str:
     """Generate a unique slug from *title* within *category*."""
     base = slugify(title) or 'page'
@@ -99,7 +115,7 @@ def create_page(
         slug=slug,
         summary=summary,
         status=status,
-        content_html=sanitize_html(content_html),
+        content_html=cms_sanitize_html(content_html),
         order_in_category=order_in_category,
     )
     page.clean()
@@ -126,7 +142,7 @@ def update_page(
     page.slug = slug
     page.summary = summary
     page.status = status
-    page.content_html = sanitize_html(content_html)
+    page.content_html = cms_sanitize_html(content_html)
     page.parent = parent
     page.clean()
     page.save()

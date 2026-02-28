@@ -19,6 +19,10 @@ DEBUG = os.environ.get('DJANGO_DEBUG', 'True') == 'True'
 
 ALLOWED_HOSTS = os.environ.get('DJANGO_ALLOWED_HOSTS', 'localhost 127.0.0.1 [::1]').split()
 
+# Feature flag: disable bleach HTML sanitization for CMS editor saves (debug/test only)
+# WARNING: setting this to True persists raw, unsanitized HTML – never enable in production.
+CMS_DISABLE_HTML_SANITIZATION = os.environ.get('CMS_DISABLE_HTML_SANITIZATION', 'False') == 'True'
+
 # Application definition
 INSTALLED_APPS = [
     'django.contrib.admin',
