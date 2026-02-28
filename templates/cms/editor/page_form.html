@@ -158,22 +158,22 @@
               <!-- ── Content (Quill) ── -->
               <div class="tab-pane fade" id="pane-content" role="tabpanel" aria-labelledby="tab-content">
                 <div class="d-flex justify-content-between align-items-center mb-2">
-                  <label class="form-label fw-semibold mb-0">Inhalt</label>
+                  <label class="form-label fw-semibold mb-0">Inhalt (Quell-HTML)</label>
                   {% if page %}
-                  <button type="button" class="btn btn-sm btn-outline-primary" id="optimize-content-btn"
-                          data-url="{% url 'cms:page-optimize-content' page.pk %}">
-                    <i class="bi bi-stars me-1"></i>Mit KI optimieren
+                  <button type="button" class="btn btn-sm btn-outline-primary" id="optimize-layout-btn"
+                          data-url="{% url 'cms:page-optimize-layout' page.pk %}">
+                    <i class="bi bi-stars me-1"></i>Layout mit KI erstellen
                   </button>
                   {% endif %}
                 </div>
-                <div id="quill-editor">{% if posted %}{{ posted.content_html|safe }}{% elif page %}{{ page.content_html|safe }}{% endif %}</div>
+                <div id="quill-editor">{% if posted %}{{ posted.content_html_source|safe }}{% elif page %}{{ page.content_html_source|safe }}{% endif %}</div>
                 <!-- Hidden textarea carries the HTML to the server -->
-                <textarea name="content_html" id="id_content_html"
-                          class="d-none" aria-hidden="true">{% if posted %}{{ posted.content_html }}{% elif page %}{{ page.content_html }}{% endif %}</textarea>
+                <textarea name="content_html_source" id="id_content_html_source"
+                          class="d-none" aria-hidden="true">{% if posted %}{{ posted.content_html_source }}{% elif page %}{{ page.content_html_source }}{% endif %}</textarea>
                 <div id="content-status" class="form-text"></div>
                 <div class="form-text mt-2">
                   <i class="bi bi-shield-check me-1 text-success"></i>
-                  HTML wird serverseitig bereinigt (Allowlist).
+                  HTML wird serverseitig bereinigt (Allowlist). Das Layout wird separat vom KI-Agent erstellt.
                 </div>
               </div>
 
@@ -231,7 +231,7 @@
   // when the user submits without opening the "Inhalt" tab.
   document.getElementById('page-form').addEventListener('submit', function () {
     if (quill) {
-      document.getElementById('id_content_html').value = quill.root.innerHTML;
+      document.getElementById('id_content_html_source').value = quill.root.innerHTML;
     }
   });
 
@@ -393,6 +393,54 @@
       .finally(function () {
         btn.disabled = false;
         btn.innerHTML = '<i class="bi bi-stars me-1"></i>Mit KI optimieren';
+      });
+    });
+  }
+
+  // AI Layout Generation: Create Bootstrap layout from source
+  var optimizeLayoutBtn = document.getElementById('optimize-layout-btn');
+  if (optimizeLayoutBtn) {
+    optimizeLayoutBtn.addEventListener('click', function () {
+      var btn = this;
+      var statusDiv = document.getElementById('content-status');
+      var url = btn.getAttribute('data-url');
+
+      // Get current content from Quill or hidden textarea
+      var currentContent = quill ? quill.root.innerHTML : document.getElementById('id_content_html_source').value;
+
+      if (!currentContent.trim() || currentContent === '<p><br></p>') {
+        statusDiv.innerHTML = '<span class="text-danger">Quell-Inhalt ist leer.</span>';
+        return;
+      }
+
+      // Disable button and show loading
+      btn.disabled = true;
+      btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Layout wird erstellt...';
+      statusDiv.innerHTML = '<span class="text-info">KI erstellt Bootstrap-Layout aus dem Quell-Inhalt...</span>';
+
+      fetch(url, {
+        method: 'POST',
+        headers: {
+          'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value,
+          'Content-Type': 'application/json'
+        }
+      })
+      .then(function (response) {
+        return response.json();
+      })
+      .then(function (data) {
+        if (data.success) {
+          statusDiv.innerHTML = '<span class="text-success"><i class="bi bi-check-circle me-1"></i>' + data.message + ' Das Layout wird auf der öffentlichen Seite angezeigt.</span>';
+        } else {
+          statusDiv.innerHTML = '<span class="text-danger"><i class="bi bi-exclamation-circle me-1"></i>' + (data.error || 'Fehler bei der Layout-Erstellung') + '</span>';
+        }
+      })
+      .catch(function (error) {
+        statusDiv.innerHTML = '<span class="text-danger"><i class="bi bi-exclamation-circle me-1"></i>Fehler: ' + error.message + '</span>';
+      })
+      .finally(function () {
+        btn.disabled = false;
+        btn.innerHTML = '<i class="bi bi-stars me-1"></i>Layout mit KI erstellen';
       });
     });
   }

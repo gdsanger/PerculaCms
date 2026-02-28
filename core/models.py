@@ -166,6 +166,9 @@ class Page(models.Model):
     published_at = models.DateTimeField(null=True, blank=True)
     # HTML content (Quill editor output, server-side sanitised)
     content_html = models.TextField(blank=True, default='')
+    # Separate source and layout HTML (Issue #505)
+    content_html_source = models.TextField(blank=True, default='', help_text='Source content edited in Quill')
+    content_html_layout = models.TextField(blank=True, default='', help_text='AI-generated Bootstrap layout')
     # Tags
     audience_tags = models.JSONField(blank=True, default=list)
     intent_tags = models.JSONField(blank=True, default=list)
