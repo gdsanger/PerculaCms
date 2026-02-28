@@ -22,7 +22,7 @@
           <span class="gradient-text">kognitiv.</span>
         </h1>
         <p class="lead text-muted mb-5">
-          Wir entwickeln intelligente Systeme und SaaS-Plattformen, die Ihr Unternehmen
+          Ich entwickle intelligente Systeme und SaaS-Plattformen, die Ihr Unternehmen
           in eine smarte, datengetriebene Zukunft führen – ohne Komplexität, mit Wirkung.
         </p>
         <div class="d-flex flex-wrap gap-3">
@@ -75,31 +75,6 @@
   </div>
 </section>
 
-<!-- ═══════════════════════════════════════════════════════════
-     STATS BAND
-═══════════════════════════════════════════════════════════ -->
-<section class="percula-stats" aria-label="Zahlen und Fakten">
-  <div class="container">
-    <div class="row text-center gy-4">
-      <div class="col-6 col-md-3">
-        <div class="stat-value">50+</div>
-        <div class="stat-label">Implementierte Projekte</div>
-      </div>
-      <div class="col-6 col-md-3">
-        <div class="stat-value">99.9%</div>
-        <div class="stat-label">Uptime SLA</div>
-      </div>
-      <div class="col-6 col-md-3">
-        <div class="stat-value">12×</div>
-        <div class="stat-label">Effizienzgewinn ø</div>
-      </div>
-      <div class="col-6 col-md-3">
-        <div class="stat-value">24/7</div>
-        <div class="stat-label">KI-Support</div>
-      </div>
-    </div>
-  </div>
-</section>
 
 <!-- ═══════════════════════════════════════════════════════════
      SERVICES
@@ -205,13 +180,12 @@
   <div class="container">
     <div class="row align-items-center gy-5">
       <div class="col-lg-5">
-        <div class="section-badge">Unsere Lösungen</div>
+        <div class="section-badge">Lösungen</div>
         <h2 class="fw-bold fs-1 mb-4">
           Intelligenz,<br>die wirkt.
         </h2>
         <p class="text-muted mb-4">
-          Unsere kognitiven Systeme lernen, adaptieren und optimieren – kontinuierlich.
-          Kein einmaliges Projekt, sondern ein Partner, der mit Ihrem Unternehmen wächst.
+          Kognitive Systeme lernen, adaptieren und optimieren – kontinuierlich.         
         </p>
         <ul class="list-unstyled mb-4">
           <li class="d-flex align-items-start gap-2 mb-3">
@@ -220,20 +194,17 @@
           </li>
           <li class="d-flex align-items-start gap-2 mb-3">
             <i class="bi bi-check-circle-fill text-success mt-1"></i>
-            <span class="text-muted small">On-Premise, Cloud oder Hybrid – Ihre Wahl</span>
+            <span class="text-muted small">On-Premise, Cloud oder Hybrid</span>
           </li>
           <li class="d-flex align-items-start gap-2 mb-3">
             <i class="bi bi-check-circle-fill text-success mt-1"></i>
-            <span class="text-muted small">DSGVO-konform aus Deutschland</span>
+            <span class="text-muted small">DSGVO-konform</span>
           </li>
           <li class="d-flex align-items-start gap-2">
             <i class="bi bi-check-circle-fill text-success mt-1"></i>
             <span class="text-muted small">Open-Source-Technologien, keine Vendor-Lock-ins</span>
           </li>
-        </ul>
-        <a href="#contact" class="btn btn-primary px-4">
-          <i class="bi bi-arrow-right me-2"></i>Lösung anfragen
-        </a>
+        </ul>        
       </div>
 
       <div class="col-lg-6 offset-lg-1">
@@ -370,34 +341,6 @@
   </div>
 </section>
 
-<!-- ═══════════════════════════════════════════════════════════
-     CTA / CONTACT
-═══════════════════════════════════════════════════════════ -->
-<section id="contact" class="py-5 py-lg-7" aria-label="Kontakt">
-  <div class="container">
-    <div class="percula-cta p-5 text-center">
-      <div class="section-badge mb-3">Lassen Sie uns sprechen</div>
-      <h2 class="fw-bold fs-1 mb-3">Bereit für die KI-Transformation?</h2>
-      <p class="text-muted mx-auto mb-5" style="max-width:500px;">
-        Vereinbaren Sie ein kostenloses Erstgespräch und erfahren Sie,
-        wie kognitive Systeme Ihrem Unternehmen helfen können.
-      </p>
-      <div class="d-flex flex-wrap justify-content-center gap-3">
-        {% if site.contact_email %}
-          <a href="mailto:{{ site.contact_email }}" class="btn btn-primary btn-lg px-5">
-            <i class="bi bi-envelope-fill me-2"></i>E-Mail senden
-          </a>
-        {% else %}
-          <a href="#" class="btn btn-primary btn-lg px-5">
-            <i class="bi bi-envelope-fill me-2"></i>Kontakt aufnehmen
-          </a>
-        {% endif %}
-        <a href="#" class="btn btn-outline-primary btn-lg px-5">
-          <i class="bi bi-calendar-check me-2"></i>Termin buchen
-        </a>
-      </div>
-    </div>
-  </div>
-</section>
+
 
 {% endblock %}

@@ -1,0 +1,8 @@
+2026-02-27 23:29:27 [INFO] django.utils.autoreload autoreload.run_with_reloader:667 – Watching for file changes with StatReloader
+2026-02-27 23:29:33 [DEBUG] core.views views.get:15 – HomeView accessed by 127.0.0.1
+2026-02-27 23:29:33 [INFO] core.models models.save:34 – SiteSettings saved: PerculaCMS
+2026-02-27 23:29:33 [INFO] django.server basehttp.log_message:213 – "GET / HTTP/1.1" 200 23710
+2026-02-27 23:29:34 [INFO] django.server basehttp.log_message:213 – "GET /static/css/percula.css HTTP/1.1" 200 6637
+2026-02-27 23:29:34 [INFO] django.server basehttp.log_message:213 – "GET /static/js/percula.js HTTP/1.1" 200 2180
+2026-02-27 23:29:34 [WARNING] django.request log.log_response:253 – Not Found: /favicon.ico
+2026-02-27 23:29:34 [WARNING] django.server basehttp.log_message:213 – "GET /favicon.ico HTTP/1.1" 404 2969
