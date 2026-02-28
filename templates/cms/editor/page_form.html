@@ -240,9 +240,22 @@ var quill;
   }
 
   function setStatus(el, ok, message) {
-    el.innerHTML = ok
-      ? '<span class="text-success"><i class="bi bi-check-circle me-1"></i>' + message + '</span>'
-      : '<span class="text-danger"><i class="bi bi-exclamation-circle me-1"></i>' + message + '</span>';
+    // Clear existing content
+    el.textContent = '';
+
+    // Create wrapper span with appropriate color class
+    var span = document.createElement('span');
+    span.className = ok ? 'text-success' : 'text-danger';
+
+    // Create icon element
+    var icon = document.createElement('i');
+    icon.className = ok ? 'bi bi-check-circle me-1' : 'bi bi-exclamation-circle me-1';
+
+    // Assemble elements and append message as text
+    span.appendChild(icon);
+    span.appendChild(document.createTextNode(message));
+
+    el.appendChild(span);
   }
 
   // ── Optimize Summary ──
