@@ -29,7 +29,15 @@ class CategoryDetailView(View):
 
     def get(self, request, slug):
         category = get_object_or_404(Category, slug=slug, is_visible=True)
-        pages = category.pages.filter(status='published').order_by('order_in_category')
+        can_manage = request.user.is_authenticated and (
+            request.user.is_superuser or request.user.has_perm('core.manage_content')
+        )
+        if can_manage:
+            pages = category.pages.filter(
+                status__in=[Page.Status.PUBLISHED, Page.Status.DRAFT]
+            ).order_by('order_in_category')
+        else:
+            pages = category.pages.filter(status=Page.Status.PUBLISHED).order_by('order_in_category')
         context = {
             'site': SiteSettings.get_settings(),
             'category': category,
@@ -43,8 +51,20 @@ class PageDetailView(View):
 
     def get(self, request, category_slug, page_slug):
         category = get_object_or_404(Category, slug=category_slug, is_visible=True)
-        page = get_object_or_404(Page, category=category, slug=page_slug, status=Page.Status.PUBLISHED)
-        child_pages = page.children.filter(status=Page.Status.PUBLISHED).order_by('order_in_category')
+        can_manage = request.user.is_authenticated and (
+            request.user.is_superuser or request.user.has_perm('core.manage_content')
+        )
+        if can_manage:
+            allowed_statuses = [Page.Status.PUBLISHED, Page.Status.DRAFT]
+        else:
+            allowed_statuses = [Page.Status.PUBLISHED]
+        page = get_object_or_404(Page, category=category, slug=page_slug, status__in=allowed_statuses)
+        if can_manage:
+            child_pages = page.children.filter(
+                status__in=[Page.Status.PUBLISHED, Page.Status.DRAFT]
+            ).order_by('order_in_category')
+        else:
+            child_pages = page.children.filter(status=Page.Status.PUBLISHED).order_by('order_in_category')
         context = {
             'site': SiteSettings.get_settings(),
             'category': category,
