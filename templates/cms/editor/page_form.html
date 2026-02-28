@@ -118,10 +118,16 @@
                     <div class="d-flex justify-content-between align-items-center mb-2">
                       <label class="form-label fw-semibold mb-0" for="id_summary">Zusammenfassung</label>
                       {% if page %}
-                      <button type="button" class="btn btn-sm btn-outline-primary" id="optimize-summary-btn"
-                              data-url="{% url 'cms:page-optimize-summary' page.pk %}">
-                        <i class="bi bi-stars me-1"></i>Mit KI optimieren
-                      </button>
+                      <div>
+                        <button type="button" class="btn btn-sm btn-outline-secondary me-2" id="create-summary-btn"
+                                data-url="{% url 'cms:page-create-summary' page.pk %}">
+                          <i class="bi bi-stars me-1"></i>Mit KI erstellen
+                        </button>
+                        <button type="button" class="btn btn-sm btn-outline-primary" id="optimize-summary-btn"
+                                data-url="{% url 'cms:page-optimize-summary' page.pk %}">
+                          <i class="bi bi-stars me-1"></i>Mit KI optimieren
+                        </button>
+                      </div>
                       {% endif %}
                     </div>
                     <textarea class="form-control" id="id_summary" name="summary"
@@ -285,6 +291,56 @@
       .finally(function () {
         btn.disabled = false;
         btn.innerHTML = '<i class="bi bi-stars me-1"></i>Mit KI optimieren';
+      });
+    });
+  }
+
+  // AI Creation: Summary from Content
+  var createSummaryBtn = document.getElementById('create-summary-btn');
+  if (createSummaryBtn) {
+    createSummaryBtn.addEventListener('click', function () {
+      var btn = this;
+      var summaryTextarea = document.getElementById('id_summary');
+      var statusDiv = document.getElementById('summary-status');
+      var url = btn.getAttribute('data-url');
+
+      // Get current content from Quill or hidden textarea
+      var currentContent = quill ? quill.root.innerHTML : document.getElementById('id_content_html').value;
+
+      if (!currentContent.trim() || currentContent === '<p><br></p>') {
+        statusDiv.innerHTML = '<span class="text-danger">Inhalt ist leer. Bitte fügen Sie Inhalt hinzu, bevor Sie eine Zusammenfassung erstellen.</span>';
+        return;
+      }
+
+      // Disable button and show loading
+      btn.disabled = true;
+      btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Erstellung läuft...';
+      statusDiv.innerHTML = '<span class="text-info">KI erstellt Zusammenfassung aus dem Inhalt...</span>';
+
+      fetch(url, {
+        method: 'POST',
+        headers: {
+          'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value,
+          'Content-Type': 'application/json'
+        }
+      })
+      .then(function (response) {
+        return response.json();
+      })
+      .then(function (data) {
+        if (data.success) {
+          summaryTextarea.value = data.created_text;
+          statusDiv.innerHTML = '<span class="text-success"><i class="bi bi-check-circle me-1"></i>' + data.message + '</span>';
+        } else {
+          statusDiv.innerHTML = '<span class="text-danger"><i class="bi bi-exclamation-circle me-1"></i>' + (data.error || 'Fehler bei der Erstellung') + '</span>';
+        }
+      })
+      .catch(function (error) {
+        statusDiv.innerHTML = '<span class="text-danger"><i class="bi bi-exclamation-circle me-1"></i>Fehler: ' + error.message + '</span>';
+      })
+      .finally(function () {
+        btn.disabled = false;
+        btn.innerHTML = '<i class="bi bi-stars me-1"></i>Mit KI erstellen';
       });
     });
   }
