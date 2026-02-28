@@ -3,7 +3,11 @@ from django.test import TestCase
 from django.urls import reverse
 from django.core.exceptions import ValidationError
 
-from .models import NavigationItem, SiteSettings, Category, Page, PageBlock, MediaFolder, MediaAsset, MediaAssetUsage
+from .models import (
+    NavigationItem, SiteSettings, Category, Page, PageBlock,
+    MediaFolder, MediaAsset, MediaAssetUsage,
+    Redirect, PageRevision, Snippet, VisitorSession, BehaviorEvent,
+)
 
 
 class SiteSettingsModelTest(TestCase):
@@ -420,3 +424,198 @@ class MediaAssetUsageModelTest(TestCase):
         )
         self.assertEqual(usage.content_object, self.page)
 
+
+
+# ---------------------------------------------------------------------------
+# Redirect Tests
+# ---------------------------------------------------------------------------
+
+class RedirectModelTest(TestCase):
+    def _make_redirect(self, **kwargs):
+        defaults = dict(from_path='/old', to_path='/new')
+        defaults.update(kwargs)
+        return Redirect.objects.create(**defaults)
+
+    def test_str_representation(self):
+        r = self._make_redirect()
+        self.assertIn('/old', str(r))
+        self.assertIn('/new', str(r))
+
+    def test_default_status_code_301(self):
+        r = self._make_redirect()
+        self.assertEqual(r.status_code, 301)
+
+    def test_default_is_active_true(self):
+        r = self._make_redirect()
+        self.assertTrue(r.is_active)
+
+    def test_default_hit_count_zero(self):
+        r = self._make_redirect()
+        self.assertEqual(r.hit_count, 0)
+
+    def test_unique_from_path(self):
+        self._make_redirect()
+        with self.assertRaises(Exception):
+            self._make_redirect()
+
+    def test_ordering_by_from_path(self):
+        Redirect.objects.create(from_path='/b', to_path='/x')
+        Redirect.objects.create(from_path='/a', to_path='/y')
+        paths = list(Redirect.objects.values_list('from_path', flat=True))
+        self.assertEqual(paths, ['/a', '/b'])
+
+    def test_clean_rejects_identical_paths(self):
+        r = Redirect(from_path='/same', to_path='/same')
+        with self.assertRaises(ValidationError):
+            r.clean()
+
+    def test_clean_allows_different_paths(self):
+        r = Redirect(from_path='/old', to_path='/new')
+        r.clean()  # should not raise
+
+
+# ---------------------------------------------------------------------------
+# PageRevision Tests
+# ---------------------------------------------------------------------------
+
+class PageRevisionModelTest(TestCase):
+    def setUp(self):
+        cat = Category.objects.create(key='home', title='Home', slug='home', order=0)
+        self.page = Page.objects.create(
+            category=cat, title='Welcome', slug='welcome', order_in_category=0
+        )
+
+    def _make_revision(self, revision_no=1, **kwargs):
+        defaults = dict(
+            page=self.page,
+            revision_no=revision_no,
+            snapshot={'page': {'title': 'Welcome'}, 'blocks': []},
+        )
+        defaults.update(kwargs)
+        return PageRevision.objects.create(**defaults)
+
+    def test_str_representation(self):
+        rev = self._make_revision()
+        self.assertIn('rev 1', str(rev))
+
+    def test_unique_revision_no_per_page(self):
+        self._make_revision(revision_no=1)
+        with self.assertRaises(Exception):
+            self._make_revision(revision_no=1)
+
+    def test_same_revision_no_different_pages(self):
+        cat2 = Category.objects.create(key='about', title='About', slug='about', order=1)
+        page2 = Page.objects.create(
+            category=cat2, title='About', slug='about', order_in_category=0
+        )
+        self._make_revision(revision_no=1)
+        rev2 = PageRevision.objects.create(
+            page=page2, revision_no=1,
+            snapshot={'page': {}, 'blocks': []},
+        )
+        self.assertIsNotNone(rev2.pk)
+
+    def test_snapshot_is_json(self):
+        rev = self._make_revision(snapshot={'page': {'title': 'T'}, 'blocks': [{'type': 'hero'}]})
+        rev.refresh_from_db()
+        self.assertEqual(rev.snapshot['blocks'][0]['type'], 'hero')
+
+    def test_note_defaults_blank(self):
+        rev = self._make_revision()
+        self.assertEqual(rev.note, '')
+
+
+# ---------------------------------------------------------------------------
+# Snippet Tests
+# ---------------------------------------------------------------------------
+
+class SnippetModelTest(TestCase):
+    def _make_snippet(self, **kwargs):
+        defaults = dict(key='footer.primary', title='Primary Footer', type='richtext', data={'html': '<p>Hi</p>'})
+        defaults.update(kwargs)
+        return Snippet.objects.create(**defaults)
+
+    def test_str_representation(self):
+        s = self._make_snippet()
+        self.assertEqual(str(s), 'footer.primary')
+
+    def test_unique_key(self):
+        self._make_snippet()
+        with self.assertRaises(Exception):
+            self._make_snippet()
+
+    def test_default_is_active_true(self):
+        s = self._make_snippet()
+        self.assertTrue(s.is_active)
+
+    def test_tags_default_empty_list(self):
+        s = self._make_snippet()
+        self.assertEqual(s.tags, [])
+
+    def test_ordering_by_key(self):
+        Snippet.objects.create(key='z.key', title='Z', type='richtext')
+        Snippet.objects.create(key='a.key', title='A', type='richtext')
+        keys = list(Snippet.objects.values_list('key', flat=True))
+        self.assertEqual(keys, ['a.key', 'z.key'])
+
+
+# ---------------------------------------------------------------------------
+# VisitorSession Tests
+# ---------------------------------------------------------------------------
+
+class VisitorSessionModelTest(TestCase):
+    def _make_session(self, **kwargs):
+        return VisitorSession.objects.create(**kwargs)
+
+    def test_id_is_uuid(self):
+        import uuid
+        session = self._make_session()
+        self.assertIsInstance(session.id, uuid.UUID)
+
+    def test_str_is_uuid_string(self):
+        session = self._make_session()
+        self.assertEqual(str(session), str(session.id))
+
+    def test_default_is_bot_suspected_false(self):
+        session = self._make_session()
+        self.assertFalse(session.is_bot_suspected)
+
+    def test_consent_defaults_empty_dict(self):
+        session = self._make_session()
+        self.assertEqual(session.consent, {})
+
+
+# ---------------------------------------------------------------------------
+# BehaviorEvent Tests
+# ---------------------------------------------------------------------------
+
+class BehaviorEventModelTest(TestCase):
+    def setUp(self):
+        self.session = VisitorSession.objects.create()
+
+    def _make_event(self, **kwargs):
+        defaults = dict(session=self.session, event_type='page_view', payload={'path': '/home'})
+        defaults.update(kwargs)
+        return BehaviorEvent.objects.create(**defaults)
+
+    def test_str_representation(self):
+        event = self._make_event()
+        self.assertIn('page_view', str(event))
+
+    def test_event_linked_to_session(self):
+        event = self._make_event()
+        self.assertIn(event, self.session.events.all())
+
+    def test_payload_defaults_empty_dict(self):
+        event = BehaviorEvent.objects.create(session=self.session, event_type='scroll_depth')
+        self.assertEqual(event.payload, {})
+
+    def test_ordering_by_occurred_at_desc(self):
+        from django.utils import timezone
+        import datetime
+        t1 = timezone.now() - datetime.timedelta(seconds=10)
+        t2 = timezone.now()
+        BehaviorEvent.objects.create(session=self.session, event_type='first', occurred_at=t1)
+        BehaviorEvent.objects.create(session=self.session, event_type='second', occurred_at=t2)
+        types = list(self.session.events.values_list('event_type', flat=True))
+        self.assertEqual(types, ['second', 'first'])
