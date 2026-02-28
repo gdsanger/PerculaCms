@@ -1,15 +1,10 @@
 """AgentService – execute registered agents via the AI Router."""
 
-import logging
 from dataclasses import dataclass
 from typing import Any, Optional, Union
 
 from .registry import get_agent
 from ..ai.router import AIRouter
-
-logger = logging.getLogger(__name__)
-
-
 @dataclass
 class AgentRunResult:
     """Result returned from a single agent run."""
