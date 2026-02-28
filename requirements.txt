@@ -1,4 +1,4 @@
 Django==5.1.*
 psycopg2-binary==2.9.*
 whitenoise==6.8.*
-Pillow==11.*
+Pillow==12.1.*
