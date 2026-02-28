@@ -167,8 +167,8 @@ class Page(models.Model):
     # HTML content (Quill editor output, server-side sanitised)
     content_html = models.TextField(blank=True, default='')
     # Tags
-    audience_tags = models.JSONField(default=list)
-    intent_tags = models.JSONField(default=list)
+    audience_tags = models.JSONField(blank=True, default=list)
+    intent_tags = models.JSONField(blank=True, default=list)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 

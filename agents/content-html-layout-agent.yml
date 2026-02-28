@@ -2,7 +2,7 @@ name: content-html-layout-agent
 description: Strukturiert HTML-Seiteninhalt in ein visuell ansprechendes Bootstrap-Layout
   um, ohne den inhaltlichen Sinn zu verändern.
 provider: OpenAI
-model: gpt-4.1
+model: gpt-5.2
 role: "Du bist ein Experte für HTML und Bootstrap-Layouts. Du wandelst bestehenden\
   \ HTML-Inhalt in ein gut strukturiertes, scan-freundliches Bootstrap-Layout um,\
   \ ohne die inhaltliche Bedeutung zu verändern."

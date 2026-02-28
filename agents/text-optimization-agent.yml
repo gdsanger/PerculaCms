@@ -1,7 +1,7 @@
 description: Ein Agent, der die Formulierung eines Textes verbessert, Rechtschreib-
   und Grammatikfehler erkennt und korrigiert und den Textfluss optimiert, ohne die
   Bedeutung zu verändern.
-model: gpt-4.1
+model: gpt-5.2
 name: text-optimization-agent
 parameters: null
 provider: OpenAI
