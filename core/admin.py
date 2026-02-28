@@ -3,6 +3,9 @@ from django.utils.html import format_html
 from django_json_widget.widgets import JSONEditorWidget
 
 from .models import (
+    AIJobsHistory,
+    AIModel,
+    AIProvider,
     BehaviorEvent,
     Category,
     MediaAsset,
@@ -298,3 +301,46 @@ class BehaviorEventAdmin(JSONWidgetMixin, admin.ModelAdmin):
     def short_payload(self, obj):
         text = str(obj.payload)
         return text[:80] + '…' if len(text) > 80 else text
+
+
+# ---------------------------------------------------------------------------
+# 11) AI Provider / Model / JobsHistory
+# ---------------------------------------------------------------------------
+
+@admin.register(AIProvider)
+class AIProviderAdmin(admin.ModelAdmin):
+    list_display = ('name', 'provider_type', 'is_active', 'updated_at')
+    list_filter = ('provider_type', 'is_active')
+    search_fields = ('name',)
+    readonly_fields = ('created_at', 'updated_at')
+
+
+@admin.register(AIModel)
+class AIModelAdmin(admin.ModelAdmin):
+    list_display = ('provider', 'name', 'model_id', 'active', 'input_price_per_1m_tokens', 'output_price_per_1m_tokens', 'updated_at')
+    list_filter = ('provider', 'active')
+    search_fields = ('name', 'model_id')
+    list_editable = ('active',)
+    readonly_fields = ('created_at', 'updated_at')
+
+
+@admin.register(AIJobsHistory)
+class AIJobsHistoryAdmin(admin.ModelAdmin):
+    list_display = ('timestamp', 'agent', 'user', 'provider', 'model', 'status', 'costs', 'duration_ms')
+    list_filter = ('provider', 'model', 'status', 'user')
+    search_fields = ('agent',)
+    date_hierarchy = 'timestamp'
+    readonly_fields = (
+        'agent', 'user', 'provider', 'model', 'status', 'client_ip',
+        'input_tokens', 'output_tokens', 'costs', 'timestamp', 'duration_ms',
+        'error_message',
+    )
+
+    def has_add_permission(self, request):
+        return False
+
+    def has_change_permission(self, request, obj=None):
+        return False
+
+    def has_delete_permission(self, request, obj=None):
+        return False

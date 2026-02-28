@@ -2,11 +2,14 @@ from django.contrib.contenttypes.models import ContentType
 from django.test import TestCase
 from django.urls import reverse
 from django.core.exceptions import ValidationError
+from unittest.mock import MagicMock, patch
+from decimal import Decimal
 
 from .models import (
     NavigationItem, SiteSettings, Category, Page, PageBlock,
     MediaFolder, MediaAsset, MediaAssetUsage,
     Redirect, PageRevision, Snippet, VisitorSession, BehaviorEvent,
+    AIProvider, AIModel, AIJobsHistory,
 )
 
 
@@ -619,3 +622,264 @@ class BehaviorEventModelTest(TestCase):
         BehaviorEvent.objects.create(session=self.session, event_type='second', occurred_at=t2)
         types = list(self.session.events.values_list('event_type', flat=True))
         self.assertEqual(types, ['second', 'first'])
+
+
+# ---------------------------------------------------------------------------
+# AIProvider Tests
+# ---------------------------------------------------------------------------
+
+class AIProviderModelTest(TestCase):
+    def _make_provider(self, **kwargs):
+        defaults = dict(
+            name='OpenAI Test',
+            provider_type=AIProvider.ProviderType.OPENAI,
+            api_key='sk-test',
+        )
+        defaults.update(kwargs)
+        return AIProvider.objects.create(**defaults)
+
+    def test_str_representation(self):
+        p = self._make_provider()
+        self.assertIn('OpenAI Test', str(p))
+        self.assertIn('OpenAI', str(p))
+
+    def test_default_is_active_true(self):
+        p = self._make_provider()
+        self.assertTrue(p.is_active)
+
+    def test_provider_type_choices(self):
+        for pt in (AIProvider.ProviderType.OPENAI, AIProvider.ProviderType.GEMINI, AIProvider.ProviderType.CLAUDE):
+            p = self._make_provider(name=f'{pt} provider', provider_type=pt)
+            self.assertEqual(p.provider_type, pt)
+
+
+# ---------------------------------------------------------------------------
+# AIModel Tests
+# ---------------------------------------------------------------------------
+
+class AIModelModelTest(TestCase):
+    def setUp(self):
+        self.provider = AIProvider.objects.create(
+            name='OpenAI Test', provider_type='OpenAI', api_key='sk-test'
+        )
+
+    def _make_model(self, **kwargs):
+        defaults = dict(
+            provider=self.provider,
+            name='GPT-4o',
+            model_id='gpt-4o',
+            input_price_per_1m_tokens=Decimal('5.000000'),
+            output_price_per_1m_tokens=Decimal('15.000000'),
+        )
+        defaults.update(kwargs)
+        return AIModel.objects.create(**defaults)
+
+    def test_str_representation(self):
+        m = self._make_model()
+        self.assertIn('gpt-4o', str(m))
+        self.assertIn('OpenAI Test', str(m))
+
+    def test_default_active_true(self):
+        m = self._make_model()
+        self.assertTrue(m.active)
+
+    def test_cascade_delete_with_provider(self):
+        m = self._make_model()
+        self.provider.delete()
+        self.assertFalse(AIModel.objects.filter(pk=m.pk).exists())
+
+
+# ---------------------------------------------------------------------------
+# AIJobsHistory Tests
+# ---------------------------------------------------------------------------
+
+class AIJobsHistoryModelTest(TestCase):
+    def setUp(self):
+        self.provider = AIProvider.objects.create(
+            name='OpenAI Test', provider_type='OpenAI', api_key='sk-test'
+        )
+        self.model = AIModel.objects.create(
+            provider=self.provider, name='GPT-4o', model_id='gpt-4o',
+        )
+
+    def _make_job(self, **kwargs):
+        defaults = dict(provider=self.provider, model=self.model)
+        defaults.update(kwargs)
+        return AIJobsHistory.objects.create(**defaults)
+
+    def test_default_status_pending(self):
+        job = self._make_job()
+        self.assertEqual(job.status, AIJobsHistory.Status.PENDING)
+
+    def test_str_representation(self):
+        job = self._make_job()
+        self.assertIn('Pending', str(job))
+
+    def test_completed_status(self):
+        job = self._make_job(
+            status=AIJobsHistory.Status.COMPLETED,
+            input_tokens=100,
+            output_tokens=50,
+            costs=Decimal('0.00175'),
+            duration_ms=320,
+        )
+        self.assertEqual(job.status, AIJobsHistory.Status.COMPLETED)
+        self.assertEqual(job.input_tokens, 100)
+        self.assertEqual(job.costs, Decimal('0.00175'))
+
+    def test_null_tokens_allowed(self):
+        job = self._make_job()
+        self.assertIsNone(job.input_tokens)
+        self.assertIsNone(job.output_tokens)
+        self.assertIsNone(job.costs)
+
+
+# ---------------------------------------------------------------------------
+# Pricing Tests
+# ---------------------------------------------------------------------------
+
+class PricingTest(TestCase):
+    def test_calculates_cost_correctly(self):
+        from core.services.ai.pricing import calculate_cost
+        cost = calculate_cost(1000, 500, Decimal('5.0'), Decimal('15.0'))
+        expected = Decimal('1000') / Decimal('1_000_000') * Decimal('5.0') + \
+                   Decimal('500') / Decimal('1_000_000') * Decimal('15.0')
+        self.assertEqual(cost, expected)
+
+    def test_returns_none_when_tokens_missing(self):
+        from core.services.ai.pricing import calculate_cost
+        self.assertIsNone(calculate_cost(None, 500, Decimal('5.0'), Decimal('15.0')))
+        self.assertIsNone(calculate_cost(1000, None, Decimal('5.0'), Decimal('15.0')))
+
+    def test_returns_none_when_prices_missing(self):
+        from core.services.ai.pricing import calculate_cost
+        self.assertIsNone(calculate_cost(1000, 500, None, Decimal('15.0')))
+        self.assertIsNone(calculate_cost(1000, 500, Decimal('5.0'), None))
+
+
+# ---------------------------------------------------------------------------
+# AIRouter Tests (mocked provider)
+# ---------------------------------------------------------------------------
+
+class AIRouterTest(TestCase):
+    def setUp(self):
+        self.provider_record = AIProvider.objects.create(
+            name='OpenAI Test', provider_type='OpenAI', api_key='sk-test',
+        )
+        self.ai_model = AIModel.objects.create(
+            provider=self.provider_record,
+            name='GPT-4o',
+            model_id='gpt-4o',
+            input_price_per_1m_tokens=Decimal('5.0'),
+            output_price_per_1m_tokens=Decimal('15.0'),
+            active=True,
+        )
+
+    def _mock_provider_response(self):
+        from core.services.ai.schemas import ProviderResponse
+        return ProviderResponse(
+            text='Hello, world!',
+            raw=object(),
+            input_tokens=10,
+            output_tokens=5,
+        )
+
+    def test_chat_returns_ai_response(self):
+        from core.services.ai.router import AIRouter
+        from core.services.ai.schemas import AIResponse
+
+        router = AIRouter()
+        mock_resp = self._mock_provider_response()
+
+        with patch.object(router, '_build_provider') as mock_build:
+            mock_prov = MagicMock()
+            mock_prov.chat.return_value = mock_resp
+            mock_build.return_value = mock_prov
+
+            result = router.chat(messages=[{'role': 'user', 'content': 'Hi'}])
+
+        self.assertIsInstance(result, AIResponse)
+        self.assertEqual(result.text, 'Hello, world!')
+        self.assertEqual(result.input_tokens, 10)
+        self.assertEqual(result.output_tokens, 5)
+        self.assertEqual(result.model, 'gpt-4o')
+        self.assertEqual(result.provider, 'OpenAI')
+
+    def test_chat_creates_completed_job(self):
+        from core.services.ai.router import AIRouter
+
+        router = AIRouter()
+        mock_resp = self._mock_provider_response()
+
+        with patch.object(router, '_build_provider') as mock_build:
+            mock_prov = MagicMock()
+            mock_prov.chat.return_value = mock_resp
+            mock_build.return_value = mock_prov
+
+            router.chat(messages=[{'role': 'user', 'content': 'Hi'}])
+
+        job = AIJobsHistory.objects.filter(status=AIJobsHistory.Status.COMPLETED).first()
+        self.assertIsNotNone(job)
+        self.assertEqual(job.input_tokens, 10)
+        self.assertEqual(job.output_tokens, 5)
+        self.assertIsNotNone(job.costs)
+        self.assertIsNotNone(job.duration_ms)
+
+    def test_generate_shortcut(self):
+        from core.services.ai.router import AIRouter
+
+        router = AIRouter()
+        mock_resp = self._mock_provider_response()
+
+        with patch.object(router, '_build_provider') as mock_build:
+            mock_prov = MagicMock()
+            mock_prov.chat.return_value = mock_resp
+            mock_build.return_value = mock_prov
+
+            result = router.generate(prompt='Say hello.')
+
+        self.assertEqual(result.text, 'Hello, world!')
+
+    def test_chat_logs_error_on_failure(self):
+        from core.services.ai.router import AIRouter
+
+        router = AIRouter()
+
+        with patch.object(router, '_build_provider') as mock_build:
+            mock_prov = MagicMock()
+            mock_prov.chat.side_effect = RuntimeError('API error')
+            mock_build.return_value = mock_prov
+
+            with self.assertRaises(RuntimeError):
+                router.chat(messages=[{'role': 'user', 'content': 'Hi'}])
+
+        job = AIJobsHistory.objects.filter(status=AIJobsHistory.Status.ERROR).first()
+        self.assertIsNotNone(job)
+        self.assertIn('API error', job.error_message)
+
+    def test_raises_when_no_active_model(self):
+        from core.services.ai.router import AIRouter
+        from core.services.base import ServiceNotConfigured
+
+        AIModel.objects.all().update(active=False)
+        router = AIRouter()
+        with self.assertRaises(ServiceNotConfigured):
+            router.chat(messages=[{'role': 'user', 'content': 'Hi'}])
+
+    def test_routing_by_provider_type(self):
+        from core.services.ai.router import AIRouter
+
+        router = AIRouter()
+        mock_resp = self._mock_provider_response()
+
+        with patch.object(router, '_build_provider') as mock_build:
+            mock_prov = MagicMock()
+            mock_prov.chat.return_value = mock_resp
+            mock_build.return_value = mock_prov
+
+            result = router.chat(
+                messages=[{'role': 'user', 'content': 'Hi'}],
+                provider_type='OpenAI',
+            )
+
+        self.assertEqual(result.provider, 'OpenAI')
