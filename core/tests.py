@@ -1181,3 +1181,64 @@ class CmsEditorPermissionTest(TestCase):
         self.client.login(username='user', password='pass')
         response = self.client.get(f'/_cms/pages/new/?category={self.cat.pk}')
         self.assertEqual(response.status_code, 200)
+
+
+# ---------------------------------------------------------------------------
+# Category Description Edit View Tests
+# ---------------------------------------------------------------------------
+
+class CategoryDescriptionEditViewTest(TestCase):
+    def setUp(self):
+        from django.contrib.auth import get_user_model
+        User = get_user_model()
+        self.cat = Category.objects.create(
+            key='desc-test', title='Desc Test', slug='desc-test', order=0, is_visible=True,
+        )
+        self.admin = User.objects.create_superuser('admin_desc', 'ad@x.com', 'pass')
+        self.regular = User.objects.create_user('user_desc', 'ud@x.com', 'pass')
+        self.url = f'/_cms/categories/{self.cat.pk}/description/'
+
+    def test_anonymous_redirects_to_login(self):
+        response = self.client.post(self.url, {'description': '<p>Hello</p>'})
+        self.assertEqual(response.status_code, 302)
+        self.assertIn('/accounts/login/', response['Location'])
+
+    def test_unprivileged_user_gets_403(self):
+        self.client.login(username='user_desc', password='pass')
+        response = self.client.post(self.url, {'description': '<p>Hello</p>'})
+        self.assertEqual(response.status_code, 403)
+
+    def test_superuser_can_save_description(self):
+        self.client.login(username='admin_desc', password='pass')
+        response = self.client.post(self.url, {'description': '<p>Hello World</p>'})
+        self.assertEqual(response.status_code, 302)
+        self.cat.refresh_from_db()
+        self.assertIn('<p>Hello World</p>', self.cat.description)
+
+    def test_description_is_sanitized(self):
+        self.client.login(username='admin_desc', password='pass')
+        self.client.post(self.url, {'description': '<p>Safe</p><script>alert(1)</script>'})
+        self.cat.refresh_from_db()
+        self.assertNotIn('<script>', self.cat.description)
+        self.assertIn('<p>Safe</p>', self.cat.description)
+
+    def test_redirect_goes_to_category_detail(self):
+        self.client.login(username='admin_desc', password='pass')
+        response = self.client.post(self.url, {'description': '<p>Test</p>'})
+        self.assertRedirects(response, f'/{self.cat.slug}/', fetch_redirect_response=False)
+
+    def test_user_with_permission_can_save_description(self):
+        from django.contrib.auth.models import Permission
+        perm = Permission.objects.get(codename='manage_content')
+        self.regular.user_permissions.add(perm)
+        self.client.login(username='user_desc', password='pass')
+        response = self.client.post(self.url, {'description': '<p>Permitted</p>'})
+        self.assertEqual(response.status_code, 302)
+        self.cat.refresh_from_db()
+        self.assertIn('<p>Permitted</p>', self.cat.description)
+
+    def test_get_request_redirects_to_category(self):
+        self.client.login(username='admin_desc', password='pass')
+        response = self.client.get(self.url)
+        self.assertEqual(response.status_code, 302)
+        self.assertIn(self.cat.slug, response['Location'])

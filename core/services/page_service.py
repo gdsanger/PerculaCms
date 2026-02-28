@@ -33,7 +33,7 @@ ALLOWED_ATTRIBUTES = {
 }
 
 
-def _sanitize_html(html: str) -> str:
+def sanitize_html(html: str) -> str:
     """Sanitise Quill-generated HTML via bleach allowlist.
 
     Also sets rel="noopener noreferrer" on any link that uses target="_blank".
@@ -99,7 +99,7 @@ def create_page(
         slug=slug,
         summary=summary,
         status=status,
-        content_html=_sanitize_html(content_html),
+        content_html=sanitize_html(content_html),
         order_in_category=order_in_category,
     )
     page.clean()
@@ -126,7 +126,7 @@ def update_page(
     page.slug = slug
     page.summary = summary
     page.status = status
-    page.content_html = _sanitize_html(content_html)
+    page.content_html = sanitize_html(content_html)
     page.parent = parent
     page.clean()
     page.save()

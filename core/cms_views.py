@@ -13,7 +13,7 @@ from django.core.exceptions import PermissionDenied, ValidationError
 from django.shortcuts import get_object_or_404, redirect, render
 
 from .models import Category, Page
-from .services.page_service import create_page, update_page
+from .services.page_service import create_page, sanitize_html, update_page
 
 logger = logging.getLogger(__name__)
 
@@ -157,3 +157,24 @@ def page_edit_view(request, pk):
 
     ctx = _build_form_context(request, category, page.parent, page)
     return render(request, 'cms/editor/page_form.html', ctx)
+
+
+# ---------------------------------------------------------------------------
+# Category Description Edit View
+# ---------------------------------------------------------------------------
+
+@login_required
+def category_description_edit_view(request, pk):
+    """Save a sanitised HTML description for a category."""
+    _require_cms_permission(request)
+
+    category = get_object_or_404(Category, pk=pk)
+
+    if request.method != 'POST':
+        return redirect('core:category-detail', slug=category.slug)
+
+    description = request.POST.get('description', '')
+    category.description = sanitize_html(description)
+    category.save()
+    messages.success(request, f'Beschreibung von „{category.title}" wurde gespeichert.')
+    return redirect('core:category-detail', slug=category.slug)
