@@ -1,6 +1,8 @@
 import logging
 
+from django.core.exceptions import ValidationError
 from django.db import models
+from django.utils import timezone
 
 logger = logging.getLogger(__name__)
 
@@ -70,3 +72,156 @@ class NavigationItem(models.Model):
 
     def __str__(self):
         return f'{self.position} | {self.label}'
+
+
+# ---------------------------------------------------------------------------
+# Category (Navigation Node)
+# ---------------------------------------------------------------------------
+
+class Category(models.Model):
+    """Primary navigation node. Represents a top-level menu entry."""
+
+    class NavPlacement(models.TextChoices):
+        HEADER = 'header', 'Header'
+        FOOTER = 'footer', 'Footer'
+        HIDDEN = 'hidden', 'Hidden'
+
+    key = models.SlugField(max_length=100, unique=True)
+    title = models.CharField(max_length=200)
+    slug = models.SlugField(max_length=200, unique=True)
+    order = models.PositiveIntegerField(default=0)
+    is_visible = models.BooleanField(default=True)
+    nav_placement = models.CharField(
+        max_length=20,
+        choices=NavPlacement.choices,
+        default=NavPlacement.HEADER,
+    )
+    description = models.TextField(blank=True, default='')
+    icon = models.CharField(max_length=100, blank=True, default='')
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['order']
+        verbose_name = 'Category'
+        verbose_name_plural = 'Categories'
+        indexes = [
+            models.Index(fields=['nav_placement', 'is_visible', 'order']),
+        ]
+
+    def __str__(self):
+        return self.title
+
+
+# ---------------------------------------------------------------------------
+# Page
+# ---------------------------------------------------------------------------
+
+class Page(models.Model):
+    """A content page belonging to a Category."""
+
+    class Status(models.TextChoices):
+        DRAFT = 'draft', 'Draft'
+        PUBLISHED = 'published', 'Published'
+        ARCHIVED = 'archived', 'Archived'
+
+    category = models.ForeignKey(
+        Category,
+        on_delete=models.CASCADE,
+        related_name='pages',
+    )
+    parent = models.ForeignKey(
+        'self',
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name='children',
+    )
+    title = models.CharField(max_length=200)
+    slug = models.SlugField(max_length=200)
+    status = models.CharField(
+        max_length=20,
+        choices=Status.choices,
+        default=Status.DRAFT,
+    )
+    summary = models.TextField(blank=True, default='')
+    template = models.CharField(max_length=100, blank=True, default='')
+    order_in_category = models.PositiveIntegerField(default=0)
+    # SEO
+    seo_title = models.CharField(max_length=200, blank=True, default='')
+    seo_description = models.TextField(blank=True, default='')
+    og_image = models.CharField(max_length=500, blank=True, default='')
+    # Publishing
+    published_at = models.DateTimeField(null=True, blank=True)
+    # Tags
+    audience_tags = models.JSONField(default=list)
+    intent_tags = models.JSONField(default=list)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['order_in_category']
+        verbose_name = 'Page'
+        verbose_name_plural = 'Pages'
+        constraints = [
+            models.UniqueConstraint(fields=['category', 'slug'], name='unique_page_slug_per_category'),
+        ]
+        indexes = [
+            models.Index(fields=['category', 'status', 'order_in_category']),
+            models.Index(fields=['status', 'published_at']),
+        ]
+
+    def __str__(self):
+        return f'{self.category} / {self.title}'
+
+    def clean(self):
+        if self.parent_id and self.parent.category_id != self.category_id:
+            raise ValidationError(
+                'Parent page must belong to the same category as this page.'
+            )
+
+    def get_absolute_url(self):
+        return f'/{self.category.slug}/{self.slug}'
+
+    def publish(self):
+        """Transition this page to published status and record the timestamp."""
+        self.status = self.Status.PUBLISHED
+        if not self.published_at:
+            self.published_at = timezone.now()
+        self.save(update_fields=['status', 'published_at', 'updated_at'])
+
+
+# ---------------------------------------------------------------------------
+# PageBlock (Block-based Content)
+# ---------------------------------------------------------------------------
+
+class PageBlock(models.Model):
+    """An ordered content block belonging to a Page."""
+
+    page = models.ForeignKey(
+        Page,
+        on_delete=models.CASCADE,
+        related_name='blocks',
+    )
+    type = models.CharField(max_length=100)
+    data = models.JSONField(default=dict)
+    order = models.PositiveIntegerField(default=0)
+    conditions = models.JSONField(default=dict)
+    is_enabled = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['order']
+        verbose_name = 'Page Block'
+        verbose_name_plural = 'Page Blocks'
+        constraints = [
+            models.UniqueConstraint(fields=['page', 'order'], name='unique_block_order_per_page'),
+        ]
+        indexes = [
+            models.Index(fields=['page', 'order']),
+            models.Index(fields=['type']),
+        ]
+
+    def __str__(self):
+        return f'{self.page} – {self.type} [{self.order}]'
