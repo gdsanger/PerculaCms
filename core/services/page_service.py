@@ -40,7 +40,7 @@ ALLOWED_ATTRIBUTES = {
 
 LAYOUT_ALLOWED_TAGS = [
     'div', 'section', 'h2', 'h3', 'h4',
-    'p', 'ul', 'ol', 'li',
+    'p', 'span', 'ul', 'ol', 'li',
     'table', 'thead', 'tbody', 'tr', 'td', 'th',
     'a', 'strong', 'em', 'blockquote', 'hr', 'br',
     'i',  # for Bootstrap icons
@@ -71,6 +71,23 @@ BOOTSTRAP_CLASS_PATTERNS = [
     r'^bg-\w+$',  # background colors
     r'^w-\d+$',  # width utilities
     r'^h-\d+$',  # height utilities
+    r'^offset(-\w+)?-\d+$',  # offset utilities
+    r'^g[xy]?-\d+$',  # gutter utilities
+    r'^align-items-\w+$',  # alignment utilities
+    r'^justify-content-\w+$',  # justification utilities
+    r'^position-\w+$',  # position utilities
+    r'^fs-\d+$',  # font size utilities
+    r'^display-\d+$',  # display heading utilities
+    r'^mx-auto$',  # center element
+    r'^badge(-\w+)?$',  # badges
+    r'^small$',  # small text
+    # Percula custom design classes
+    r'^percula-(hero|card|icon-box|navbar|logo-icon|stats|cta|footer)$',
+    r'^icon-(primary|success|warning|info|purple|rose)$',
+    r'^section-badge$',
+    r'^badge-pill$',
+    r'^gradient-text$',
+    r'^testimonial-card$',
 ]
 
 
@@ -136,6 +153,7 @@ def sanitize_layout_html(html: str) -> str:
             'h3': ['class'],
             'h4': ['class'],
             'p': ['class'],
+            'span': ['class'],
             'ul': ['class'],
             'ol': ['class'],
             'li': ['class'],
