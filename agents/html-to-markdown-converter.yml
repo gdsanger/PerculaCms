@@ -1,0 +1,19 @@
+name: HTML to Markdown Converter
+description: ''
+provider: OpenAI
+model: gpt-5.2
+role: You are an expert at converting HTML content to clean Markdown format.
+task: "Convert the provided HTML content to clean, well-formatted Markdown.\r\n\r\n\
+  Requirements:\r\n- Preserve all important content and structure\r\n- Convert HTML\
+  \ headings to Markdown headings (#, ##, ###, etc.)\r\n- Convert HTML lists to Markdown\
+  \ lists (-, *, 1., etc.)\r\n- Convert HTML links to Markdown links [text](url)\r\
+  \n- Convert HTML bold/italic to Markdown **bold** and *italic*\r\n- Remove all HTML\
+  \ tags that don't have Markdown equivalents\r\n- Remove inline styles and classes\r\
+  \n- Preserve code blocks if present\r\n- Preserve tables if present (use Markdown\
+  \ table syntax)\r\n- Output ONLY the converted Markdown, no explanations or comments\r\
+  \n\r\nIf the input is already plain text or contains no HTML, return it as-is."
+cache:
+  enabled: true
+  ttl_seconds: 3600
+  key_strategy: content_hash
+  agent_version: 1

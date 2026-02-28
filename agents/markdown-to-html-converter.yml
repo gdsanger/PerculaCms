@@ -1,0 +1,14 @@
+name: markdown-to-html-converter
+description: Ein AI-Agent, der MarkDown Text in HTML umwandelt
+provider: OpenAI
+model: gpt-5.2
+role: Spezialisiert auf das Konvertieren von MarkDown Text in HTML Code
+task: Nimm den vom Benutzer bereitgestellten MarkDown Text und konvertiere ihn in
+  HTML. Achte darauf, dass der erstellte HTML Code sauber und gut strukturiert ist
+  und korrekt die Formatierung des ursprünglichen MarkDown Textes wiedergibt. Behalte
+  alle Links, Listen, Überschriften und andere spezielle MarkDown Funktionen bei.
+cache:
+  enabled: true
+  ttl_seconds: 3600
+  key_strategy: content_hash
+  agent_version: 1

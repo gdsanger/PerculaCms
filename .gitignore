@@ -151,8 +151,6 @@ venv/
 ENV/
 env.bak/
 venv.bak/
-agents/
-/agents/
 
 # Spyder project settings
 .spyderproject
