@@ -91,7 +91,8 @@ def page_create_view(request):
                 parent=parent,
             )
         except ValidationError as exc:
-            for field, errs in exc.message_dict.items() if hasattr(exc, 'message_dict') else [('__all__', exc.messages)]:
+            error_items = exc.message_dict.items() if hasattr(exc, 'message_dict') else [('__all__', exc.messages)]
+            for field, errs in error_items:
                 for err in errs:
                     messages.error(request, f'{field}: {err}')
             ctx = _build_form_context(request, category, parent)
@@ -143,7 +144,8 @@ def page_edit_view(request, pk):
                 parent=parent,
             )
         except ValidationError as exc:
-            for field, errs in exc.message_dict.items() if hasattr(exc, 'message_dict') else [('__all__', exc.messages)]:
+            error_items = exc.message_dict.items() if hasattr(exc, 'message_dict') else [('__all__', exc.messages)]
+            for field, errs in error_items:
                 for err in errs:
                     messages.error(request, f'{field}: {err}')
             ctx = _build_form_context(request, category, page.parent, page)
