@@ -1242,3 +1242,211 @@ class CategoryDescriptionEditViewTest(TestCase):
         response = self.client.get(self.url)
         self.assertEqual(response.status_code, 302)
         self.assertIn(self.cat.slug, response['Location'])
+
+
+# ==============================================================================
+# AI Agent Optimization Tests
+# ==============================================================================
+
+class PageOptimizationViewsTest(TestCase):
+    """Tests for page optimization views."""
+
+    def setUp(self):
+        """Set up test data."""
+        # Create user with permissions
+        from django.contrib.auth.models import User, Permission
+
+        self.user = User.objects.create_user(
+            username='testuser',
+            password='testpass123'
+        )
+        perm = Permission.objects.get(codename='manage_content')
+        self.user.user_permissions.add(perm)
+
+        # Create AI provider and model (required for router)
+        self.provider = AIProvider.objects.create(
+            name='Test OpenAI',
+            provider_type='OpenAI',
+            api_key='test-key-123',
+            is_active=True
+        )
+        self.model = AIModel.objects.create(
+            provider=self.provider,
+            name='GPT-4',
+            model_id='gpt-4.1',
+            input_price_per_1m_tokens=10.0,
+            output_price_per_1m_tokens=30.0,
+            active=True
+        )
+
+        # Create category and page
+        self.category = Category.objects.create(
+            title='Test Category',
+            slug='test-category',
+            order=1
+        )
+        self.page = Page.objects.create(
+            category=self.category,
+            title='Test Page',
+            slug='test-page',
+            summary='This is a test summary with some typos.',
+            content_html='<p>This is test content with errors.</p>',
+            status=Page.Status.DRAFT
+        )
+
+        self.client.login(username='testuser', password='testpass123')
+
+    @patch('core.cms_views.run_agent')
+    def test_optimize_summary_success(self, mock_run_agent):
+        """Test successful summary optimization."""
+        from core.services.agents.service import AgentRunResult
+
+        # Mock agent response
+        mock_result = AgentRunResult(
+            agent_id='text-optimization-agent',
+            output_text='This is an optimized test summary without typos.',
+            provider='OpenAI',
+            model='gpt-4.1',
+            input_tokens=10,
+            output_tokens=15
+        )
+        mock_run_agent.return_value = mock_result
+
+        url = reverse('cms:page-optimize-summary', kwargs={'pk': self.page.pk})
+        response = self.client.post(url)
+
+        self.assertEqual(response.status_code, 200)
+        data = response.json()
+        self.assertTrue(data['success'])
+        self.assertIn('optimized_text', data)
+        self.assertEqual(data['optimized_text'], 'This is an optimized test summary without typos.')
+
+        # Verify page was updated
+        self.page.refresh_from_db()
+        self.assertEqual(self.page.summary, 'This is an optimized test summary without typos.')
+
+        # Verify agent was called correctly
+        mock_run_agent.assert_called_once()
+        call_kwargs = mock_run_agent.call_args[1]
+        self.assertEqual(call_kwargs['task_input'], 'This is a test summary with some typos.')
+        self.assertEqual(call_kwargs['user'], self.user)
+
+    @patch('core.cms_views.run_agent')
+    def test_optimize_content_success(self, mock_run_agent):
+        """Test successful content optimization."""
+        from core.services.agents.service import AgentRunResult
+
+        # Mock agent response
+        mock_result = AgentRunResult(
+            agent_id='text-optimization-agent',
+            output_text='<p>This is optimized test content without errors.</p>',
+            provider='OpenAI',
+            model='gpt-4.1',
+            input_tokens=15,
+            output_tokens=20
+        )
+        mock_run_agent.return_value = mock_result
+
+        url = reverse('cms:page-optimize-content', kwargs={'pk': self.page.pk})
+        response = self.client.post(url)
+
+        self.assertEqual(response.status_code, 200)
+        data = response.json()
+        self.assertTrue(data['success'])
+        self.assertIn('optimized_text', data)
+
+        # Verify page was updated
+        self.page.refresh_from_db()
+        self.assertIn('optimized test content', self.page.content_html)
+
+    def test_optimize_summary_empty(self):
+        """Test optimization with empty summary."""
+        self.page.summary = ''
+        self.page.save()
+
+        url = reverse('cms:page-optimize-summary', kwargs={'pk': self.page.pk})
+        response = self.client.post(url)
+
+        self.assertEqual(response.status_code, 400)
+        data = response.json()
+        self.assertIn('error', data)
+
+    def test_optimize_content_empty(self):
+        """Test optimization with empty content."""
+        self.page.content_html = ''
+        self.page.save()
+
+        url = reverse('cms:page-optimize-content', kwargs={'pk': self.page.pk})
+        response = self.client.post(url)
+
+        self.assertEqual(response.status_code, 400)
+        data = response.json()
+        self.assertIn('error', data)
+
+    @patch('core.cms_views.run_agent')
+    def test_optimize_summary_agent_error(self, mock_run_agent):
+        """Test handling of agent execution error."""
+        mock_run_agent.side_effect = Exception('AI service unavailable')
+
+        url = reverse('cms:page-optimize-summary', kwargs={'pk': self.page.pk})
+        response = self.client.post(url)
+
+        self.assertEqual(response.status_code, 500)
+        data = response.json()
+        self.assertIn('error', data)
+
+    def test_optimize_requires_login(self):
+        """Test that optimization requires authentication."""
+        self.client.logout()
+
+        url = reverse('cms:page-optimize-summary', kwargs={'pk': self.page.pk})
+        response = self.client.post(url)
+
+        # Should redirect to login
+        self.assertEqual(response.status_code, 302)
+
+    def test_optimize_requires_permission(self):
+        """Test that optimization requires manage_content permission."""
+        from django.contrib.auth.models import User
+
+        # Create user without permission
+        user_no_perm = User.objects.create_user(
+            username='noperm',
+            password='testpass123'
+        )
+        self.client.logout()
+        self.client.login(username='noperm', password='testpass123')
+
+        url = reverse('cms:page-optimize-summary', kwargs={'pk': self.page.pk})
+        response = self.client.post(url)
+
+        self.assertEqual(response.status_code, 403)
+
+    def test_optimize_get_not_allowed(self):
+        """Test that GET requests are not allowed."""
+        url = reverse('cms:page-optimize-summary', kwargs={'pk': self.page.pk})
+        response = self.client.get(url)
+
+        self.assertEqual(response.status_code, 405)
+
+
+class AgentServiceIntegrationTest(TestCase):
+    """Integration tests for the agent service."""
+
+    def test_agent_registry_loads_agents(self):
+        """Test that agents are loaded from YAML files."""
+        from core.services.agents.registry import get_agent
+
+        agent = get_agent('text-optimization-agent')
+        self.assertEqual(agent.agent_id, 'text-optimization-agent')
+        self.assertEqual(agent.provider, 'OpenAI')
+        self.assertIsNotNone(agent.role)
+        self.assertIsNotNone(agent.task)
+
+    def test_agent_not_found_raises_error(self):
+        """Test that requesting non-existent agent raises error."""
+        from core.services.agents.registry import get_agent, AgentNotFoundError
+
+        with self.assertRaises(AgentNotFoundError):
+            get_agent('non-existent-agent-xyz')
+

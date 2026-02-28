@@ -115,9 +115,18 @@
 
                   <!-- Summary -->
                   <div class="col-12">
-                    <label class="form-label fw-semibold" for="id_summary">Zusammenfassung</label>
+                    <div class="d-flex justify-content-between align-items-center mb-2">
+                      <label class="form-label fw-semibold mb-0" for="id_summary">Zusammenfassung</label>
+                      {% if page %}
+                      <button type="button" class="btn btn-sm btn-outline-primary" id="optimize-summary-btn"
+                              data-url="{% url 'cms:page-optimize-summary' page.pk %}">
+                        <i class="bi bi-stars me-1"></i>Mit KI optimieren
+                      </button>
+                      {% endif %}
+                    </div>
                     <textarea class="form-control" id="id_summary" name="summary"
                               rows="3" placeholder="Kurzbeschreibung (optional)">{% if posted %}{{ posted.summary }}{% elif page %}{{ page.summary }}{% endif %}</textarea>
+                    <div id="summary-status" class="form-text"></div>
                   </div>
 
                   <!-- Parent (only shown for edit, or when parent is not pre-set) -->
@@ -142,11 +151,20 @@
 
               <!-- ── Content (Quill) ── -->
               <div class="tab-pane fade" id="pane-content" role="tabpanel" aria-labelledby="tab-content">
-                <label class="form-label fw-semibold">Inhalt</label>
+                <div class="d-flex justify-content-between align-items-center mb-2">
+                  <label class="form-label fw-semibold mb-0">Inhalt</label>
+                  {% if page %}
+                  <button type="button" class="btn btn-sm btn-outline-primary" id="optimize-content-btn"
+                          data-url="{% url 'cms:page-optimize-content' page.pk %}">
+                    <i class="bi bi-stars me-1"></i>Mit KI optimieren
+                  </button>
+                  {% endif %}
+                </div>
                 <div id="quill-editor">{% if posted %}{{ posted.content_html|safe }}{% elif page %}{{ page.content_html|safe }}{% endif %}</div>
                 <!-- Hidden textarea carries the HTML to the server -->
                 <textarea name="content_html" id="id_content_html"
                           class="d-none" aria-hidden="true">{% if posted %}{{ posted.content_html }}{% elif page %}{{ page.content_html }}{% endif %}</textarea>
+                <div id="content-status" class="form-text"></div>
                 <div class="form-text mt-2">
                   <i class="bi bi-shield-check me-1 text-success"></i>
                   HTML wird serverseitig bereinigt (Allowlist).
@@ -223,6 +241,105 @@
         .replace(/[\s]+/g, '-');
     }
   });
+
+  // AI Optimization: Summary
+  var optimizeSummaryBtn = document.getElementById('optimize-summary-btn');
+  if (optimizeSummaryBtn) {
+    optimizeSummaryBtn.addEventListener('click', function () {
+      var btn = this;
+      var summaryTextarea = document.getElementById('id_summary');
+      var statusDiv = document.getElementById('summary-status');
+      var url = btn.getAttribute('data-url');
+
+      if (!summaryTextarea.value.trim()) {
+        statusDiv.innerHTML = '<span class="text-danger">Zusammenfassung ist leer.</span>';
+        return;
+      }
+
+      // Disable button and show loading
+      btn.disabled = true;
+      btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Optimierung läuft...';
+      statusDiv.innerHTML = '<span class="text-info">KI optimiert den Text...</span>';
+
+      fetch(url, {
+        method: 'POST',
+        headers: {
+          'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value,
+          'Content-Type': 'application/json'
+        }
+      })
+      .then(function (response) {
+        return response.json();
+      })
+      .then(function (data) {
+        if (data.success) {
+          summaryTextarea.value = data.optimized_text;
+          statusDiv.innerHTML = '<span class="text-success"><i class="bi bi-check-circle me-1"></i>' + data.message + '</span>';
+        } else {
+          statusDiv.innerHTML = '<span class="text-danger"><i class="bi bi-exclamation-circle me-1"></i>' + (data.error || 'Fehler bei der Optimierung') + '</span>';
+        }
+      })
+      .catch(function (error) {
+        statusDiv.innerHTML = '<span class="text-danger"><i class="bi bi-exclamation-circle me-1"></i>Fehler: ' + error.message + '</span>';
+      })
+      .finally(function () {
+        btn.disabled = false;
+        btn.innerHTML = '<i class="bi bi-stars me-1"></i>Mit KI optimieren';
+      });
+    });
+  }
+
+  // AI Optimization: Content
+  var optimizeContentBtn = document.getElementById('optimize-content-btn');
+  if (optimizeContentBtn) {
+    optimizeContentBtn.addEventListener('click', function () {
+      var btn = this;
+      var statusDiv = document.getElementById('content-status');
+      var url = btn.getAttribute('data-url');
+
+      // Get current content from Quill or hidden textarea
+      var currentContent = quill ? quill.root.innerHTML : document.getElementById('id_content_html').value;
+
+      if (!currentContent.trim() || currentContent === '<p><br></p>') {
+        statusDiv.innerHTML = '<span class="text-danger">Inhalt ist leer.</span>';
+        return;
+      }
+
+      // Disable button and show loading
+      btn.disabled = true;
+      btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Optimierung läuft...';
+      statusDiv.innerHTML = '<span class="text-info">KI optimiert den Text...</span>';
+
+      fetch(url, {
+        method: 'POST',
+        headers: {
+          'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value,
+          'Content-Type': 'application/json'
+        }
+      })
+      .then(function (response) {
+        return response.json();
+      })
+      .then(function (data) {
+        if (data.success) {
+          if (quill) {
+            quill.root.innerHTML = data.optimized_text;
+          }
+          document.getElementById('id_content_html').value = data.optimized_text;
+          statusDiv.innerHTML = '<span class="text-success"><i class="bi bi-check-circle me-1"></i>' + data.message + '</span>';
+        } else {
+          statusDiv.innerHTML = '<span class="text-danger"><i class="bi bi-exclamation-circle me-1"></i>' + (data.error || 'Fehler bei der Optimierung') + '</span>';
+        }
+      })
+      .catch(function (error) {
+        statusDiv.innerHTML = '<span class="text-danger"><i class="bi bi-exclamation-circle me-1"></i>Fehler: ' + error.message + '</span>';
+      })
+      .finally(function () {
+        btn.disabled = false;
+        btn.innerHTML = '<i class="bi bi-stars me-1"></i>Mit KI optimieren';
+      });
+    });
+  }
 })();
 </script>
 {% endblock %}
