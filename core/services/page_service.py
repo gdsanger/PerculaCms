@@ -390,3 +390,15 @@ def update_page_layout_html(
     page.save(update_fields=["content_html_layout"])
     logger.info("Page layout updated: pk=%s", page.pk)
     return page
+
+
+# =============================================================================
+# Backward-compatible aliases (for legacy imports)
+# =============================================================================
+
+# Alias for legacy code expecting cms_sanitize_html (generic HTML sanitization)
+# Maps to source sanitization since that's more appropriate for Category descriptions
+cms_sanitize_html = cms_sanitize_source_html
+
+# Alias for legacy code expecting sanitize_html (generic HTML sanitization)
+sanitize_html = sanitize_source_html
