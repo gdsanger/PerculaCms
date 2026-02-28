@@ -3,6 +3,8 @@
 Routes (namespace ``cms``):
   GET/POST  /_cms/pages/new/          ?category=<id>  [&parent=<id>]
   GET/POST  /_cms/pages/<pk>/edit/
+  POST      /_cms/pages/<pk>/optimize-summary/
+  POST      /_cms/pages/<pk>/optimize-content/
 """
 
 import logging
@@ -10,10 +12,13 @@ import logging
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.core.exceptions import PermissionDenied, ValidationError
+from django.http import JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 
 from .models import Category, Page
 from .services.page_service import create_page, sanitize_html, update_page
+from .services.agents.service import run_agent
+from .services.agents.registry import AgentNotFoundError
 
 logger = logging.getLogger(__name__)
 
@@ -178,3 +183,112 @@ def category_description_edit_view(request, pk):
     category.save()
     messages.success(request, f'Beschreibung von „{category.title}" wurde gespeichert.')
     return redirect('core:category-detail', slug=category.slug)
+
+
+# ---------------------------------------------------------------------------
+# AI Agent Optimization Views
+# ---------------------------------------------------------------------------
+
+@login_required
+def page_optimize_summary_view(request, pk):
+    """Optimize page summary using text-optimization-agent."""
+    _require_cms_permission(request)
+
+    if request.method != 'POST':
+        return JsonResponse({'error': 'POST request required'}, status=405)
+
+    page = get_object_or_404(Page, pk=pk)
+
+    # Get current summary
+    current_summary = page.summary or ''
+    if not current_summary.strip():
+        return JsonResponse({
+            'error': 'Zusammenfassung ist leer. Bitte fügen Sie Text hinzu, bevor Sie optimieren.'
+        }, status=400)
+
+    try:
+        # Run the text-optimization-agent
+        result = run_agent(
+            'text-optimization-agent',
+            task_input=current_summary,
+            user=request.user,
+            client_ip=request.META.get('REMOTE_ADDR'),
+        )
+
+        # Update the page with the optimized summary
+        page.summary = result.output_text
+        page.save(update_fields=['summary'])
+
+        logger.info(f"Page {page.pk} summary optimized by {request.user.username}")
+
+        return JsonResponse({
+            'success': True,
+            'optimized_text': result.output_text,
+            'message': 'Zusammenfassung wurde erfolgreich optimiert.'
+        })
+
+    except AgentNotFoundError as e:
+        logger.error(f"Agent not found: {e}")
+        return JsonResponse({
+            'error': 'Optimierungs-Agent nicht gefunden.'
+        }, status=500)
+
+    except Exception as e:
+        logger.error(f"Failed to optimize summary for page {page.pk}: {e}")
+        return JsonResponse({
+            'error': 'Optimierung fehlgeschlagen. Bitte versuchen Sie es später erneut.'
+        }, status=500)
+
+
+@login_required
+def page_optimize_content_view(request, pk):
+    """Optimize page content using text-optimization-agent."""
+    _require_cms_permission(request)
+
+    if request.method != 'POST':
+        return JsonResponse({'error': 'POST request required'}, status=405)
+
+    page = get_object_or_404(Page, pk=pk)
+
+    # Get current content
+    current_content = page.content_html or ''
+    if not current_content.strip():
+        return JsonResponse({
+            'error': 'Inhalt ist leer. Bitte fügen Sie Text hinzu, bevor Sie optimieren.'
+        }, status=400)
+
+    try:
+        # Run the text-optimization-agent
+        result = run_agent(
+            'text-optimization-agent',
+            task_input=current_content,
+            user=request.user,
+            client_ip=request.META.get('REMOTE_ADDR'),
+        )
+
+        # Sanitize the optimized content (for security)
+        optimized_content = sanitize_html(result.output_text)
+
+        # Update the page with the optimized content
+        page.content_html = optimized_content
+        page.save(update_fields=['content_html'])
+
+        logger.info(f"Page {page.pk} content optimized by {request.user.username}")
+
+        return JsonResponse({
+            'success': True,
+            'optimized_text': optimized_content,
+            'message': 'Inhalt wurde erfolgreich optimiert.'
+        })
+
+    except AgentNotFoundError as e:
+        logger.error(f"Agent not found: {e}")
+        return JsonResponse({
+            'error': 'Optimierungs-Agent nicht gefunden.'
+        }, status=500)
+
+    except Exception as e:
+        logger.error(f"Failed to optimize content for page {page.pk}: {e}")
+        return JsonResponse({
+            'error': 'Optimierung fehlgeschlagen. Bitte versuchen Sie es später erneut.'
+        }, status=500)
