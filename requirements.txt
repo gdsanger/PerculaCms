@@ -6,3 +6,4 @@ django-json-widget
 openai>=1.109.1
 google-genai>=1.65.0
 weaviate-client>=4.0.0,<5.0.0
+bleach>=6.3.0

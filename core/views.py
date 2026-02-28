@@ -3,7 +3,7 @@ import logging
 from django.shortcuts import get_object_or_404, render
 from django.views import View
 
-from .models import Category, NavigationItem, SiteSettings
+from .models import Category, NavigationItem, Page, SiteSettings
 
 logger = logging.getLogger(__name__)
 
@@ -34,5 +34,21 @@ class CategoryDetailView(View):
             'site': SiteSettings.get_settings(),
             'category': category,
             'pages': pages,
+        }
+        return render(request, self.template_name, context)
+
+
+class PageDetailView(View):
+    template_name = 'core/page_detail.html'
+
+    def get(self, request, category_slug, page_slug):
+        category = get_object_or_404(Category, slug=category_slug, is_visible=True)
+        page = get_object_or_404(Page, category=category, slug=page_slug, status=Page.Status.PUBLISHED)
+        child_pages = page.children.filter(status=Page.Status.PUBLISHED).order_by('order_in_category')
+        context = {
+            'site': SiteSettings.get_settings(),
+            'category': category,
+            'page': page,
+            'child_pages': child_pages,
         }
         return render(request, self.template_name, context)

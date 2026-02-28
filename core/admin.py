@@ -113,6 +113,7 @@ class PageAdmin(JSONWidgetMixin, admin.ModelAdmin):
     inlines = [PageBlockInline]
     fieldsets = (
         ('Basics', {'fields': ('title', 'slug', 'category', 'parent', 'summary', 'template')}),
+        ('Content', {'fields': ('content_html',)}),
         ('Publishing', {'fields': ('status', 'published_at')}),
         ('SEO', {'fields': ('seo_title', 'seo_description', 'og_image', 'og_image_asset')}),
         ('Cognitive Tags', {'fields': ('audience_tags', 'intent_tags')}),
