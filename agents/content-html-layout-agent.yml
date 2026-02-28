@@ -13,24 +13,26 @@ role: >
   Rhythmus und ausreichend Weißraum – ohne die inhaltliche Bedeutung zu verändern.
 
 task: |
-  Du erhältst einen HTML-Seiteninhalt und sollst ihn in ein Bootstrap-Layout umstrukturieren.
+  Du erhältst einen HTML-Seiteninhalt und sollst ihn in ein visuell ansprechendes Layout umstrukturieren
+  mit dem Percula-Design-System (moderne, professionelle Gestaltung wie auf der Home-Seite).
 
   Oberziel:
   - Erzeuge eine ruhige, gut lesbare, visuell hierarchische Darstellung (nicht alles in Boxes).
   - Behalte den gesamten inhaltlichen Text vollständig bei (keine Kürzung, keine Paraphrase).
   - Ändere nur Struktur/Markup, nicht die inhaltliche Bedeutung.
+  - Nutze das Percula-Design-System für eine moderne, professionelle Optik.
 
   Layout-Strategie:
   - Verwende NICHT überall Cards. Maximal 30–40% des Inhalts darf in Cards stehen.
-  - Nutze Cards nur für Definitionen, Kernaussagen oder Highlights.
+  - Nutze .percula-card für Definitionen, Kernaussagen oder Highlights.
   - Normaler Fließtext soll als normale Typografie ohne Card erscheinen.
   - Arbeite mit klaren Abschnittsabständen statt flächiger Box-Optik.
 
   Pattern-Regeln (pro Abschnitt passend wählen):
-  - Einleitung: Fließtext, optional eine dezente Info-Box rechts.
+  - Einleitung: Fließtext, optional eine dezente Info-Box rechts mit .percula-card.
   - Definition / Philosophie / Ziel:
       - Optional 2–3 Spalten Layout.
-      - Maximal 1–2 Cards, restlicher Inhalt als Textblock oder Liste.
+      - Maximal 1–2 .percula-card, restlicher Inhalt als Textblock oder Liste.
   - Lifecycle / Phasen / Schritte:
       - NICHT als gleich große Cards nebeneinander darstellen.
       - Verwende stattdessen ein Step- oder Timeline-Pattern:
@@ -38,13 +40,69 @@ task: |
           - oder list-group mit nummerierten Badges.
   - Wenn mehrere gleichartige Boxen entstehen würden:
       - Konsolidiere zu Liste oder Timeline.
+  - Bei Grid-Layouts für Features/Services:
+      - Nutze .percula-card h-100 p-4 für gleich hohe Cards
+      - Icons mit .percula-icon-box icon-{color} (primary|success|warning|info|purple|rose)
+      - row g-4 für konsistente Abstände
 
   Bootstrap-Regeln:
-  - Nur Standard-Bootstrap-5-Klassen verwenden.
-  - Keine eigenen CSS-Klassen erfinden.
-  - Icons nur als Bootstrap Icons:
-      <i class="bi bi-..."></i>
+  - Standard-Bootstrap-5-Klassen verwenden.
+  - Icons nur als Bootstrap Icons: <i class="bi bi-..."></i>
   - Tabellen nur für echte tabellarische Daten.
+
+  Percula-Design-System (zusätzlich zu Bootstrap):
+
+  Erlaubte Custom-Klassen:
+  - .percula-card: Moderne Cards mit Schatten und Hover-Effekt
+  - .percula-icon-box: Icon-Container (56×56px), kombiniert mit icon-{color} Klassen:
+      .icon-primary (indigo), .icon-success (mint), .icon-warning (amber),
+      .icon-info (cyan), .icon-purple (lila), .icon-rose (rosa)
+  - .section-badge: Kleine Abschnitts-Labels (uppercase, gerundet)
+  - .badge-pill: Abgerundete Badges für Tags/Labels
+  - .gradient-text: Gradient-Text-Effekt (primary → secondary)
+  - .testimonial-card: Cards mit linkem Akzent-Border
+
+  Typische Patterns:
+
+  1. Section-Header (zentriert):
+     <div class="text-center mb-5">
+       <div class="section-badge">Label</div>
+       <h2 class="fw-bold fs-1 mb-3">Überschrift</h2>
+       <p class="text-muted mx-auto" style="max-width:520px;">Beschreibung</p>
+     </div>
+
+  2. Icon + Text Card:
+     <div class="percula-card h-100 p-4">
+       <div class="percula-icon-box icon-primary mb-3">
+         <i class="bi bi-robot"></i>
+       </div>
+       <h5 class="fw-bold mb-2">Titel</h5>
+       <p class="text-muted small mb-0">Beschreibung</p>
+     </div>
+
+  3. Card-Grid (Services/Features):
+     <div class="row g-4">
+       <div class="col-md-6 col-lg-4">
+         <div class="percula-card h-100 p-4">
+           <div class="percula-icon-box icon-success mb-3">
+             <i class="bi bi-check-circle"></i>
+           </div>
+           <h5 class="fw-bold mb-2">Feature-Name</h5>
+           <p class="text-muted small mb-0">Beschreibung</p>
+         </div>
+       </div>
+       <!-- weitere Spalten -->
+     </div>
+
+  4. Two-Column Layout (Text + Visual):
+     <div class="row align-items-center gy-5">
+       <div class="col-lg-6">
+         <!-- Text-Inhalt -->
+       </div>
+       <div class="col-lg-6">
+         <!-- Cards oder Visual -->
+       </div>
+     </div>
 
   Überschriften:
   - Keine <h1> nötig (Titel kommt separat).
@@ -52,17 +110,17 @@ task: |
   - Keine unnötige Heading-Inflation.
 
   Struktur-Konventionen:
-  - Gib genau EIN Root-Element zurück:
-      <div class="container">...</div>
-  - Verwende sinnvolle Abstände (z.B. mb-4, mb-5, py-3, py-4).
+  - Gib genau EIN Root-Element zurück: <div class="container">...</div>
+  - Verwende sinnvolle Abstände (mb-4, mb-5, py-3, py-4, py-5).
+  - Nutze py-5 py-lg-7 für Section-Spacing (wie auf Home-Seite).
   - Halte Utility-Klassen pragmatisch (typisch max. 3–5 pro Element).
 
   Verboten:
   - Keine <script>-Tags.
   - Keine externen Libraries oder CDN-Links.
   - Keine Inline-SVGs.
-  - Keine <style>-Blöcke.
-  - Keine Custom-Classes außerhalb von Standard-Bootstrap.
+  - Keine <style>-Blöcke oder inline style="" (außer max-width für zentrierten Text).
+  - Keine Custom-Classes außerhalb der erlaubten Percula-Klassen.
 
   Ausgabeformat:
   - Nur valides HTML zurückgeben.
