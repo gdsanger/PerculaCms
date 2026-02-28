@@ -162,8 +162,9 @@ class AIRouter:
 
         Routing strategy (in priority order):
         1. Both *provider_type* and *model_id* given → exact match.
-        2. Only *provider_type* given → first active model of that provider.
-        3. Nothing given → first active OpenAI model, then first active Gemini model.
+        2. If exact match fails, fall back to any active model of that provider.
+        3. Only *provider_type* given → first active model of that provider.
+        4. Nothing given → first active OpenAI model, then first active Gemini model.
 
         Raises:
             :class:`~core.services.base.ServiceNotConfigured` if no active model
@@ -174,9 +175,27 @@ class AIRouter:
         qs = AIModel.objects.filter(active=True, provider__is_active=True).select_related('provider')
 
         if provider_type and model_id:
-            qs = qs.filter(provider__provider_type=provider_type, model_id=model_id)
+            # Try exact match first
+            exact_qs = qs.filter(provider__provider_type=provider_type, model_id=model_id)
+            ai_model = exact_qs.first()
+
+            # If exact match not found, fall back to any active model of that provider
+            if ai_model is None:
+                logger.warning(
+                    f"Model '{model_id}' not found for provider '{provider_type}'. "
+                    f"Falling back to any active model of that provider."
+                )
+                fallback_qs = qs.filter(provider__provider_type=provider_type)
+                ai_model = fallback_qs.first()
+
+                if ai_model is not None:
+                    logger.info(
+                        f"Using fallback model: {ai_model.model_id} "
+                        f"(provider: {ai_model.provider.name})"
+                    )
         elif provider_type:
             qs = qs.filter(provider__provider_type=provider_type)
+            ai_model = qs.first()
         else:
             # Default: prefer OpenAI then Gemini
             openai_qs = qs.filter(provider__provider_type=AIProvider.ProviderType.OPENAI)
@@ -186,8 +205,8 @@ class AIRouter:
                 gemini_qs = qs.filter(provider__provider_type=AIProvider.ProviderType.GEMINI)
                 if gemini_qs.exists():
                     qs = gemini_qs
+            ai_model = qs.first()
 
-        ai_model = qs.first()
         if ai_model is None:
             raise ServiceNotConfigured('No active AI model configured.')
 
