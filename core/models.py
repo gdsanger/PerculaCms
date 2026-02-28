@@ -528,6 +528,127 @@ class VisitorSession(models.Model):
         return str(self.id)
 
 
+# ---------------------------------------------------------------------------
+# AI Core – Provider / Model / Jobs History
+# ---------------------------------------------------------------------------
+
+class AIProvider(models.Model):
+    """Configuration record for an AI provider (OpenAI, Gemini, …)."""
+
+    class ProviderType(models.TextChoices):
+        OPENAI = 'OpenAI', 'OpenAI'
+        GEMINI = 'Gemini', 'Gemini'
+        CLAUDE = 'Claude', 'Claude'
+
+    name = models.CharField(max_length=200)
+    provider_type = models.CharField(
+        max_length=20,
+        choices=ProviderType.choices,
+    )
+    # API key stored as plain text; encrypt at-rest via DB/OS-level encryption or a
+    # custom field wrapper.  Never logged or exposed in exceptions.
+    api_key = models.CharField(max_length=500)
+    organization_id = models.CharField(max_length=200, blank=True, default='')
+    is_active = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = 'AI Provider'
+        verbose_name_plural = 'AI Providers'
+        ordering = ['provider_type', 'name']
+
+    def __str__(self):
+        return f'{self.name} ({self.provider_type})'
+
+
+class AIModel(models.Model):
+    """A specific model offered by an AI provider."""
+
+    provider = models.ForeignKey(
+        AIProvider,
+        on_delete=models.CASCADE,
+        related_name='models',
+    )
+    name = models.CharField(max_length=200)
+    model_id = models.CharField(max_length=200, help_text='Provider-side model identifier, e.g. gpt-4o')
+    input_price_per_1m_tokens = models.DecimalField(
+        max_digits=12, decimal_places=6, null=True, blank=True,
+        help_text='USD cost per 1 million input tokens',
+    )
+    output_price_per_1m_tokens = models.DecimalField(
+        max_digits=12, decimal_places=6, null=True, blank=True,
+        help_text='USD cost per 1 million output tokens',
+    )
+    active = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = 'AI Model'
+        verbose_name_plural = 'AI Models'
+        ordering = ['provider', 'name']
+
+    def __str__(self):
+        return f'{self.provider.name} / {self.name} ({self.model_id})'
+
+
+class AIJobsHistory(models.Model):
+    """Audit log for every AI API call made through the AIRouter."""
+
+    class Status(models.TextChoices):
+        PENDING = 'Pending', 'Pending'
+        COMPLETED = 'Completed', 'Completed'
+        ERROR = 'Error', 'Error'
+
+    agent = models.CharField(max_length=200, default='core.ai')
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name='ai_jobs',
+    )
+    provider = models.ForeignKey(
+        AIProvider,
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name='jobs',
+    )
+    model = models.ForeignKey(
+        AIModel,
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name='jobs',
+    )
+    status = models.CharField(
+        max_length=20,
+        choices=Status.choices,
+        default=Status.PENDING,
+    )
+    client_ip = models.GenericIPAddressField(null=True, blank=True)
+    input_tokens = models.PositiveIntegerField(null=True, blank=True)
+    output_tokens = models.PositiveIntegerField(null=True, blank=True)
+    costs = models.DecimalField(max_digits=12, decimal_places=8, null=True, blank=True)
+    timestamp = models.DateTimeField(default=timezone.now)
+    duration_ms = models.PositiveIntegerField(null=True, blank=True)
+    error_message = models.TextField(blank=True, default='')
+
+    class Meta:
+        verbose_name = 'AI Jobs History'
+        verbose_name_plural = 'AI Jobs History'
+        ordering = ['-timestamp']
+        indexes = [
+            models.Index(fields=['provider', 'model', 'status', 'timestamp']),
+            models.Index(fields=['user', 'timestamp']),
+        ]
+
+    def __str__(self):
+        return f'{self.agent} | {self.status} | {self.timestamp}'
+
+
 class BehaviorEvent(models.Model):
     """A single tracked event within an anonymous visitor session."""
 

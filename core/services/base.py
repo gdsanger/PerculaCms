@@ -1,11 +1,13 @@
-"""
-Base exceptions for PerculaCMS infrastructure services.
-"""
+"""Base exceptions for core services."""
 
 
-class ServiceDisabled(Exception):
-    """Raised when a service is explicitly disabled via feature toggle."""
+class ServiceError(Exception):
+    """Base class for all service-layer errors."""
 
 
-class ServiceNotConfigured(Exception):
-    """Raised when required configuration for a service is missing."""
+class ServiceNotConfigured(ServiceError):
+    """Raised when a required service has no active configuration."""
+
+
+class ServiceDisabled(ServiceError):
+    """Raised when a service exists but is explicitly disabled."""
