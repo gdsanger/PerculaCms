@@ -3,3 +3,4 @@ psycopg2-binary==2.9.*
 whitenoise==6.8.*
 Pillow==12.1.*
 django-json-widget
+weaviate-client>=4.0.0,<5.0.0
