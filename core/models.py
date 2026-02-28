@@ -1,5 +1,7 @@
+import uuid
 import logging
 
+from django.conf import settings
 from django.contrib.contenttypes.fields import GenericForeignKey
 from django.contrib.contenttypes.models import ContentType
 from django.core.exceptions import ValidationError
@@ -388,3 +390,164 @@ class MediaAssetUsage(models.Model):
 
     def __str__(self):
         return f'{self.asset} → {self.content_type} #{self.object_id} [{self.field}]'
+
+
+# ---------------------------------------------------------------------------
+# Redirect
+# ---------------------------------------------------------------------------
+
+class Redirect(models.Model):
+    """HTTP redirect rules for managing slug changes and SEO-preserving redirects."""
+
+    class StatusCode(models.IntegerChoices):
+        PERMANENT = 301, '301 Permanent'
+        TEMPORARY = 302, '302 Temporary'
+
+    from_path = models.CharField(max_length=500)
+    to_path = models.CharField(max_length=500)
+    status_code = models.IntegerField(
+        choices=StatusCode.choices,
+        default=StatusCode.PERMANENT,
+    )
+    is_active = models.BooleanField(default=True)
+    hit_count = models.PositiveIntegerField(default=0)
+    last_hit_at = models.DateTimeField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['from_path']
+        verbose_name = 'Redirect'
+        verbose_name_plural = 'Redirects'
+        constraints = [
+            models.UniqueConstraint(fields=['from_path'], name='unique_redirect_from_path'),
+        ]
+        indexes = [
+            models.Index(fields=['is_active', 'from_path']),
+        ]
+
+    def __str__(self):
+        return f'{self.from_path} → {self.to_path} [{self.status_code}]'
+
+    def clean(self):
+        if self.from_path and self.from_path == self.to_path:
+            raise ValidationError('from_path and to_path must not be identical.')
+
+
+# ---------------------------------------------------------------------------
+# PageRevision
+# ---------------------------------------------------------------------------
+
+class PageRevision(models.Model):
+    """Snapshot-based revision history for a Page (including its blocks)."""
+
+    page = models.ForeignKey(
+        Page,
+        on_delete=models.CASCADE,
+        related_name='revisions',
+    )
+    revision_no = models.PositiveIntegerField()
+    snapshot = models.JSONField()
+    note = models.TextField(blank=True, default='')
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name='page_revisions',
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-created_at']
+        verbose_name = 'Page Revision'
+        verbose_name_plural = 'Page Revisions'
+        constraints = [
+            models.UniqueConstraint(fields=['page', 'revision_no'], name='unique_page_revision_no'),
+        ]
+        indexes = [
+            models.Index(fields=['page', 'created_at']),
+        ]
+
+    def __str__(self):
+        return f'{self.page} – rev {self.revision_no}'
+
+
+# ---------------------------------------------------------------------------
+# Snippet
+# ---------------------------------------------------------------------------
+
+class Snippet(models.Model):
+    """Reusable content fragments referenced across multiple pages."""
+
+    key = models.CharField(max_length=200, unique=True, db_index=True)
+    title = models.CharField(max_length=200)
+    type = models.CharField(max_length=100)
+    data = models.JSONField(default=dict)
+    is_active = models.BooleanField(default=True)
+    tags = models.JSONField(default=list)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['key']
+        verbose_name = 'Snippet'
+        verbose_name_plural = 'Snippets'
+        indexes = [
+            models.Index(fields=['is_active', 'type']),
+        ]
+
+    def __str__(self):
+        return self.key
+
+
+# ---------------------------------------------------------------------------
+# Event Log (anonymous, session-based)
+# ---------------------------------------------------------------------------
+
+class VisitorSession(models.Model):
+    """Anonymous visitor session for GDPR-friendly behavior tracking."""
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    created_at = models.DateTimeField(auto_now_add=True)
+    last_seen_at = models.DateTimeField(default=timezone.now)
+    consent = models.JSONField(default=dict)
+    user_agent = models.CharField(max_length=500, blank=True, default='')
+    ip_hash = models.CharField(max_length=128, blank=True, default='')
+    is_bot_suspected = models.BooleanField(default=False)
+
+    class Meta:
+        verbose_name = 'Visitor Session'
+        verbose_name_plural = 'Visitor Sessions'
+        indexes = [
+            models.Index(fields=['last_seen_at']),
+            models.Index(fields=['created_at']),
+        ]
+
+    def __str__(self):
+        return str(self.id)
+
+
+class BehaviorEvent(models.Model):
+    """A single tracked event within an anonymous visitor session."""
+
+    session = models.ForeignKey(
+        VisitorSession,
+        on_delete=models.CASCADE,
+        related_name='events',
+    )
+    event_type = models.CharField(max_length=100)
+    payload = models.JSONField(default=dict)
+    occurred_at = models.DateTimeField(default=timezone.now)
+
+    class Meta:
+        ordering = ['-occurred_at']
+        verbose_name = 'Behavior Event'
+        verbose_name_plural = 'Behavior Events'
+        indexes = [
+            models.Index(fields=['session', 'occurred_at']),
+            models.Index(fields=['event_type', 'occurred_at']),
+        ]
+
+    def __str__(self):
+        return f'{self.event_type} @ {self.occurred_at}'
