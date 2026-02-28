@@ -1,5 +1,7 @@
 import logging
 
+from django.contrib.contenttypes.fields import GenericForeignKey
+from django.contrib.contenttypes.models import ContentType
 from django.core.exceptions import ValidationError
 from django.db import models
 from django.utils import timezone
@@ -151,6 +153,13 @@ class Page(models.Model):
     seo_title = models.CharField(max_length=200, blank=True, default='')
     seo_description = models.TextField(blank=True, default='')
     og_image = models.CharField(max_length=500, blank=True, default='')
+    og_image_asset = models.ForeignKey(
+        'MediaAsset',
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name='og_image_pages',
+    )
     # Publishing
     published_at = models.DateTimeField(null=True, blank=True)
     # Tags
@@ -225,3 +234,157 @@ class PageBlock(models.Model):
 
     def __str__(self):
         return f'{self.page} – {self.type} [{self.order}]'
+
+
+# ---------------------------------------------------------------------------
+# Media Library
+# ---------------------------------------------------------------------------
+
+class MediaFolder(models.Model):
+    """Optional folder hierarchy for organising media assets."""
+
+    parent = models.ForeignKey(
+        'self',
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name='children',
+    )
+    name = models.CharField(max_length=200)
+    slug = models.SlugField(max_length=200, blank=True, default='')
+    order = models.PositiveIntegerField(default=0)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = 'Media Folder'
+        verbose_name_plural = 'Media Folders'
+        constraints = [
+            models.UniqueConstraint(fields=['parent', 'name'], name='unique_folder_name_per_parent'),
+        ]
+        indexes = [
+            models.Index(fields=['parent', 'order']),
+        ]
+
+    def __str__(self):
+        return self.name
+
+    def clean(self):
+        """Prevent circular parent references and duplicate names within same parent."""
+        # Check for duplicate name in the same parent (including root folders)
+        qs = MediaFolder.objects.filter(parent=self.parent, name=self.name)
+        if self.pk:
+            qs = qs.exclude(pk=self.pk)
+        if qs.exists():
+            raise ValidationError('A folder with this name already exists in the same parent.')
+        # Prevent circular parent reference
+        if not self.pk:
+            return
+        ancestor = self.parent
+        while ancestor is not None:
+            if ancestor.pk == self.pk:
+                raise ValidationError('A folder cannot be its own ancestor.')
+            ancestor = ancestor.parent
+
+
+class MediaAsset(models.Model):
+    """Central media asset model for images, videos, audio and documents."""
+
+    class AssetType(models.TextChoices):
+        IMAGE = 'image', 'Image'
+        VIDEO = 'video', 'Video'
+        AUDIO = 'audio', 'Audio'
+        DOCUMENT = 'document', 'Document'
+        OTHER = 'other', 'Other'
+
+    class Status(models.TextChoices):
+        ACTIVE = 'active', 'Active'
+        ARCHIVED = 'archived', 'Archived'
+
+    folder = models.ForeignKey(
+        MediaFolder,
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name='assets',
+    )
+    title = models.CharField(max_length=200)
+    slug = models.SlugField(max_length=200, blank=True, default='')
+    asset_type = models.CharField(
+        max_length=20,
+        choices=AssetType.choices,
+        default=AssetType.OTHER,
+    )
+    file = models.FileField(upload_to='media_assets/')
+    original_filename = models.CharField(max_length=500)
+    mime_type = models.CharField(max_length=100)
+    file_size = models.BigIntegerField()
+    checksum_sha256 = models.CharField(max_length=64, blank=True, default='', db_index=True)
+    # Dimensions (image / video)
+    width = models.PositiveIntegerField(null=True, blank=True)
+    height = models.PositiveIntegerField(null=True, blank=True)
+    # Duration (audio / video)
+    duration_seconds = models.PositiveIntegerField(null=True, blank=True)
+    # Document
+    page_count = models.PositiveIntegerField(null=True, blank=True)
+    # Accessibility / presentation
+    alt_text = models.TextField(blank=True, default='')
+    caption = models.TextField(blank=True, default='')
+    # Thumbnail / preview (e.g. generated cover for PDF or video)
+    preview_image_asset = models.ForeignKey(
+        'self',
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name='preview_for',
+    )
+    tags = models.JSONField(default=list)
+    status = models.CharField(
+        max_length=20,
+        choices=Status.choices,
+        default=Status.ACTIVE,
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = 'Media Asset'
+        verbose_name_plural = 'Media Assets'
+        indexes = [
+            models.Index(fields=['asset_type', 'status', 'created_at']),
+            models.Index(fields=['folder', 'asset_type', 'created_at']),
+        ]
+
+    def __str__(self):
+        return self.title
+
+
+class MediaAssetUsage(models.Model):
+    """Tracks where a MediaAsset is used (Page, PageBlock, …)."""
+
+    asset = models.ForeignKey(
+        MediaAsset,
+        on_delete=models.CASCADE,
+        related_name='usages',
+    )
+    content_type = models.ForeignKey(ContentType, on_delete=models.CASCADE)
+    object_id = models.PositiveBigIntegerField()
+    content_object = GenericForeignKey('content_type', 'object_id')
+    field = models.CharField(max_length=200)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        verbose_name = 'Media Asset Usage'
+        verbose_name_plural = 'Media Asset Usages'
+        constraints = [
+            models.UniqueConstraint(
+                fields=['asset', 'content_type', 'object_id', 'field'],
+                name='unique_asset_usage',
+            ),
+        ]
+        indexes = [
+            models.Index(fields=['content_type', 'object_id']),
+        ]
+
+    def __str__(self):
+        return f'{self.asset} → {self.content_type} #{self.object_id} [{self.field}]'

@@ -1,8 +1,9 @@
+from django.contrib.contenttypes.models import ContentType
 from django.test import TestCase
 from django.urls import reverse
 from django.core.exceptions import ValidationError
 
-from .models import NavigationItem, SiteSettings, Category, Page, PageBlock
+from .models import NavigationItem, SiteSettings, Category, Page, PageBlock, MediaFolder, MediaAsset, MediaAssetUsage
 
 
 class SiteSettingsModelTest(TestCase):
@@ -199,4 +200,223 @@ class PageBlockModelTest(TestCase):
         types = list(self.page.blocks.values_list('type', flat=True))
         self.assertEqual(types, ['text', 'cta'])
 
+
+# ---------------------------------------------------------------------------
+# MediaFolder Tests
+# ---------------------------------------------------------------------------
+
+class MediaFolderModelTest(TestCase):
+    def _make_folder(self, name='images', parent=None):
+        return MediaFolder.objects.create(name=name, parent=parent)
+
+    def test_str_representation(self):
+        folder = self._make_folder()
+        self.assertEqual(str(folder), 'images')
+
+    def test_unique_name_within_same_parent(self):
+        self._make_folder(name='docs')
+        duplicate = MediaFolder(name='docs', parent=None)
+        with self.assertRaises(ValidationError):
+            duplicate.clean()
+
+    def test_same_name_allowed_in_different_parents(self):
+        parent1 = self._make_folder(name='parent1')
+        parent2 = self._make_folder(name='parent2')
+        child1 = MediaFolder.objects.create(name='sub', parent=parent1)
+        child2 = MediaFolder.objects.create(name='sub', parent=parent2)
+        self.assertNotEqual(child1.pk, child2.pk)
+
+    def test_nested_hierarchy(self):
+        root = self._make_folder(name='root')
+        child = MediaFolder.objects.create(name='child', parent=root)
+        self.assertEqual(child.parent, root)
+        self.assertIn(child, root.children.all())
+
+    def test_clean_rejects_cyclic_parent(self):
+        root = self._make_folder(name='root')
+        child = MediaFolder.objects.create(name='child', parent=root)
+        # Make root point to child → cycle
+        root.parent = child
+        with self.assertRaises(ValidationError):
+            root.clean()
+
+
+# ---------------------------------------------------------------------------
+# MediaAsset Tests
+# ---------------------------------------------------------------------------
+
+class MediaAssetModelTest(TestCase):
+    def _make_asset(self, **kwargs):
+        defaults = dict(
+            title='Test Image',
+            asset_type=MediaAsset.AssetType.IMAGE,
+            file='media_assets/test.png',
+            original_filename='test.png',
+            mime_type='image/png',
+            file_size=1024,
+        )
+        defaults.update(kwargs)
+        return MediaAsset.objects.create(**defaults)
+
+    def test_str_representation(self):
+        asset = self._make_asset()
+        self.assertEqual(str(asset), 'Test Image')
+
+    def test_default_status_is_active(self):
+        asset = self._make_asset()
+        self.assertEqual(asset.status, MediaAsset.Status.ACTIVE)
+
+    def test_default_asset_type(self):
+        asset = self._make_asset()
+        self.assertEqual(asset.asset_type, MediaAsset.AssetType.IMAGE)
+
+    def test_asset_in_folder(self):
+        folder = MediaFolder.objects.create(name='images')
+        asset = self._make_asset(folder=folder)
+        self.assertEqual(asset.folder, folder)
+        self.assertIn(asset, folder.assets.all())
+
+    def test_image_dimensions(self):
+        asset = self._make_asset(width=1920, height=1080)
+        self.assertEqual(asset.width, 1920)
+        self.assertEqual(asset.height, 1080)
+
+    def test_video_duration(self):
+        asset = self._make_asset(
+            title='Test Video',
+            asset_type=MediaAsset.AssetType.VIDEO,
+            file='media_assets/test.mp4',
+            original_filename='test.mp4',
+            mime_type='video/mp4',
+            duration_seconds=120,
+        )
+        self.assertEqual(asset.duration_seconds, 120)
+
+    def test_document_page_count(self):
+        asset = self._make_asset(
+            title='Test PDF',
+            asset_type=MediaAsset.AssetType.DOCUMENT,
+            file='media_assets/test.pdf',
+            original_filename='test.pdf',
+            mime_type='application/pdf',
+            page_count=5,
+        )
+        self.assertEqual(asset.page_count, 5)
+
+    def test_preview_image_asset(self):
+        thumb = self._make_asset(title='Thumbnail')
+        pdf = self._make_asset(
+            title='Report',
+            asset_type=MediaAsset.AssetType.DOCUMENT,
+            file='media_assets/report.pdf',
+            original_filename='report.pdf',
+            mime_type='application/pdf',
+            preview_image_asset=thumb,
+        )
+        self.assertEqual(pdf.preview_image_asset, thumb)
+        self.assertIn(pdf, thumb.preview_for.all())
+
+    def test_tags_default_is_empty_list(self):
+        asset = self._make_asset()
+        self.assertEqual(asset.tags, [])
+
+
+# ---------------------------------------------------------------------------
+# Page.og_image_asset FK Tests
+# ---------------------------------------------------------------------------
+
+class PageOgImageAssetTest(TestCase):
+    def setUp(self):
+        self.cat = Category.objects.create(key='home', title='Home', slug='home', order=0)
+
+    def test_og_image_asset_nullable(self):
+        page = Page.objects.create(
+            category=self.cat, title='Welcome', slug='welcome', order_in_category=0
+        )
+        self.assertIsNone(page.og_image_asset)
+
+    def test_og_image_asset_can_be_set(self):
+        asset = MediaAsset.objects.create(
+            title='OG Image',
+            asset_type=MediaAsset.AssetType.IMAGE,
+            file='media_assets/og.png',
+            original_filename='og.png',
+            mime_type='image/png',
+            file_size=2048,
+        )
+        page = Page.objects.create(
+            category=self.cat, title='About', slug='about',
+            order_in_category=0, og_image_asset=asset,
+        )
+        page.refresh_from_db()
+        self.assertEqual(page.og_image_asset, asset)
+        self.assertIn(page, asset.og_image_pages.all())
+
+
+# ---------------------------------------------------------------------------
+# MediaAssetUsage Tests
+# ---------------------------------------------------------------------------
+
+class MediaAssetUsageModelTest(TestCase):
+    def setUp(self):
+        self.asset = MediaAsset.objects.create(
+            title='Hero Image',
+            asset_type=MediaAsset.AssetType.IMAGE,
+            file='media_assets/hero.png',
+            original_filename='hero.png',
+            mime_type='image/png',
+            file_size=4096,
+        )
+        cat = Category.objects.create(key='home', title='Home', slug='home', order=0)
+        self.page = Page.objects.create(
+            category=cat, title='Welcome', slug='welcome', order_in_category=0
+        )
+        self.block = PageBlock.objects.create(
+            page=self.page, type='hero',
+            data={'image_asset_id': str(self.asset.pk)}, order=0
+        )
+
+    def _block_ct(self):
+        return ContentType.objects.get_for_model(PageBlock)
+
+    def test_usage_creation(self):
+        usage = MediaAssetUsage.objects.create(
+            asset=self.asset,
+            content_type=self._block_ct(),
+            object_id=self.block.pk,
+            field='hero_image',
+        )
+        self.assertEqual(usage.asset, self.asset)
+        self.assertEqual(usage.content_object, self.block)
+        self.assertIn(usage, self.asset.usages.all())
+
+    def test_str_representation(self):
+        usage = MediaAssetUsage.objects.create(
+            asset=self.asset,
+            content_type=self._block_ct(),
+            object_id=self.block.pk,
+            field='hero_image',
+        )
+        self.assertIn('Hero Image', str(usage))
+        self.assertIn('hero_image', str(usage))
+
+    def test_unique_constraint(self):
+        ct = self._block_ct()
+        MediaAssetUsage.objects.create(
+            asset=self.asset, content_type=ct, object_id=self.block.pk, field='hero_image'
+        )
+        with self.assertRaises(Exception):
+            MediaAssetUsage.objects.create(
+                asset=self.asset, content_type=ct, object_id=self.block.pk, field='hero_image'
+            )
+
+    def test_page_as_usage_target(self):
+        page_ct = ContentType.objects.get_for_model(Page)
+        usage = MediaAssetUsage.objects.create(
+            asset=self.asset,
+            content_type=page_ct,
+            object_id=self.page.pk,
+            field='og_image',
+        )
+        self.assertEqual(usage.content_object, self.page)
 
